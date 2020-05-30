@@ -10,7 +10,6 @@ use super::Dispatcher;
 ///
 /// TODO(Kaarel)
 pub struct RawDispatcher {
-    #[allow(dead_code)]
     dispatch: u8,
 }
 
@@ -18,12 +17,18 @@ impl RawDispatcher {
     /// Creates a new instance of the `RawDispatcher`.
     ///
     /// The `dispatch` byte is used to select the dispatcher scheme.
+    /// 
+    /// TODO(Kaarel): Usage
     pub fn new(dispatch: u8) -> Self {
         RawDispatcher { dispatch }
     }
 }
 
-impl Dispatcher for RawDispatcher {}
+impl Dispatcher for RawDispatcher {
+    fn dispatch_byte(&self) -> u8 {
+        self.dispatch
+    }
+}
 
 /// A raw packet payload
 pub struct Packet {

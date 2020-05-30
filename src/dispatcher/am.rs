@@ -36,7 +36,6 @@ use super::Dispatcher;
 ///
 /// TODO(Kaarel)
 pub struct AMDispatcher {
-    #[allow(dead_code)]
     dispatch: u8,
 }
 
@@ -53,7 +52,11 @@ impl Default for AMDispatcher {
     }
 }
 
-impl Dispatcher for AMDispatcher {}
+impl Dispatcher for AMDispatcher {
+    fn dispatch_byte(&self) -> u8 {
+        self.dispatch
+    }
+}
 
 /// An ActiveMessage packet
 ///

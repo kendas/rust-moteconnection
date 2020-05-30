@@ -27,6 +27,8 @@ pub struct SFTransport {
 
 impl SFTransport {
     /// Constructs a new `SFTransport` instance.
+    /// 
+    /// TODO(Kaarel): Usage
     pub fn new(
         addr: &SocketAddr,
         // on_connect: Option<Box<dyn Fn()>>,
@@ -98,6 +100,8 @@ pub struct SFBuilder {
 
 impl SFBuilder {
     /// Creates a new `SFBuilder`
+    /// 
+    /// TODO(Kaarel): Usage
     pub fn new(addr: SocketAddr) -> Self {
         SFBuilder {
             addr,
@@ -107,16 +111,22 @@ impl SFBuilder {
     }
 
     /// Registers a callback function for signaling a successful connection.
+    /// 
+    /// TODO(Kaarel): Usage
     pub fn on_connect(&mut self, callback: Box<dyn Fn()>) {
         self.connect_callback = Some(callback);
     }
 
-    /// Registers a callback function for signaling a disconnect ecent.
+    /// Registers a callback function for signaling a disconnect event.
+    /// 
+    /// TODO(Kaarel): Usage
     pub fn on_disconnect(&mut self, callback: Box<dyn Fn()>) {
         self.disconnect_callback = Some(callback);
     }
 
-    /// Creates an `SFTransport` object and starts its operation
+    /// Creates an `SFTransport` object and starts its operation.
+    /// 
+    /// TODO(Kaarel): Usage
     pub fn start(&self) -> SFTransport {
         SFTransport::new(&self.addr)
     }
@@ -132,6 +142,11 @@ impl TryFrom<String> for SFBuilder {
     type Error = std::io::Error;
 
     fn try_from(addr: String) -> Result<Self, Self::Error> {
+        let addr = if !addr.contains(':') {
+            format!("{}{}", addr, ":9002")
+        } else {
+            addr
+        };
         match addr.to_socket_addrs()?.next() {
             Some(addr) => Ok(SFBuilder {
                 addr,
@@ -209,6 +224,20 @@ fn write_to_stream(stream: &mut TcpStream, data: Bytes) -> Result<(), std::io::E
 mod tests {
     use super::*;
     use std::net::{Shutdown, TcpListener, TcpStream};
+
+    #[test]
+    fn test_default_port() {
+        let addr = String::from("localhost");
+        let builder = SFBuilder::try_from(addr).unwrap();
+        assert_eq!(builder.addr.port(), 9002)
+    }
+
+    #[test]
+    fn test_explicit_port() {
+        let addr = String::from("localhost:12334");
+        let builder = SFBuilder::try_from(addr).unwrap();
+        assert_eq!(builder.addr.port(), 12334)
+    }
 
     #[test]
     fn test_handshake() {
