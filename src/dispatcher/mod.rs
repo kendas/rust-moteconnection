@@ -58,6 +58,14 @@ impl TryFrom<Vec<u8>> for DispatchPacket {
     }
 }
 
+impl Into<Vec<u8>> for DispatchPacket {
+    fn into(self) -> Vec<u8> {
+        let mut result = Vec::with_capacity(1 + self.payload.len());
+        result.extend([self.dispatch].iter().chain(self.payload.iter()));
+        result
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,5 +91,12 @@ mod tests {
         let data = vec![];
         let error = DispatchPacket::try_from(data).unwrap_err();
         assert_eq!(error, "Data length is 0!");
+    }
+
+    #[test]
+    fn test_dispatchpacket_into_bytes() {
+        let packet = DispatchPacket { dispatch: 5, payload: vec![1, 2, 3]};
+        let bytes: Vec<u8> = packet.into();
+        assert_eq!(bytes, vec![5, 1, 2, 3]);
     }
 }

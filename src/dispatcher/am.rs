@@ -182,6 +182,23 @@ impl TryFrom<Vec<u8>> for Message {
     }
 }
 
+impl Into<Vec<u8>> for Message {
+    fn into(self) -> Vec<u8> {
+        let mut result = Vec::with_capacity(
+            usize::from(MINIMUM_LENGTH) + self.payload.len() + self.metadata.len(),
+        );
+        result.extend(
+            [].iter()
+                .chain(self.dest.to_be_bytes().iter())
+                .chain(self.src.to_be_bytes().iter())
+                .chain([self.length, self.group, self.id].iter())
+                .chain(self.payload.iter())
+                .chain(self.metadata.iter()),
+        );
+        result
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::MessageParseError::*;
@@ -294,5 +311,16 @@ mod test {
                 panic!("Unexpected error! {:?}", e);
             }
         }
+    }
+
+    #[test]
+    fn test_message_into_bytes() {
+        let input = vec![
+            0xFF, 0xFF, 0x00, 0x01, 0x04, 0x22, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+        ];
+        let message = Message::try_from(input.to_owned()).unwrap();
+        let output: Vec<u8> = message.into();
+
+        assert_eq!(input, output);
     }
 }
