@@ -8,32 +8,31 @@
 //! - ActiveMessage (ID=`0x00`)
 //! - Raw (ID=any)
 use std::convert::TryFrom;
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{Receiver, Sender};
 
 pub mod am;
 pub mod raw;
 
-/// A dispatcher dispatches incoming packets to interested listeners.
+type Bytes = Vec<u8>;
+
+/// A dispatcher handle
 ///
 /// TODO(Kaarel)
-pub trait Dispatcher {
-    /// Returns the dispatch byte of the dispatcher
-    fn dispatch_byte(&self) -> u8;
+pub struct Dispatcher {
+    dispatch_byte: u8,
 
-    // /// Attaches a sender.
-    // fn attach(&mut self, sender: Fn(&dyn Vec<u8>));
-    // // def attach(self, sender):
-    // //     self._sender = sender
+    handle: Arc<Mutex<DispatcherHandle>>,
 
-    // /// Detatches the sender.
-    // fn detatch(&mut self);
-    // // def detach(self):
-    // //     self._sender = None
+    /// Lets the user receive data from the serial device.
+    pub rx: Receiver<Bytes>,
+    /// Lets the user send data to the serial device.
+    pub tx: Sender<Bytes>,
+}
 
-    // /// Sends data to the radio module.
-    // fn send(&self, data: Vec<u8>);
-
-    // /// Received data from the radio module.
-    // fn receive(&self, data: DispatchPacket);
+pub(crate) struct DispatcherHandle {
+    rx: Receiver<Bytes>,
+    tx: Sender<Bytes>,
 }
 
 /// A packet with the dispatch byte and a payload.
@@ -43,6 +42,17 @@ pub struct DispatchPacket {
     pub dispatch: u8,
     /// The payload to be interpreted by the dispatcher
     pub payload: Vec<u8>,
+}
+
+impl Dispatcher {
+    /// The dispatch byte of this dispatcher.
+    pub fn dispatch_byte(&self) -> u8 {
+        self.dispatch_byte
+    }
+
+    pub(crate) fn get_handle(&self) -> Arc<Mutex<DispatcherHandle>> {
+        self.handle.clone()
+    }
 }
 
 impl TryFrom<Vec<u8>> for DispatchPacket {
@@ -64,6 +74,14 @@ impl Into<Vec<u8>> for DispatchPacket {
         result.extend([self.dispatch].iter().chain(self.payload.iter()));
         result
     }
+}
+
+/// A dispatcher dispatches incoming packets to interested listeners.
+///
+/// TODO(Kaarel)
+pub trait DispatcherBuilder {
+    /// Creates the dispatcher
+    fn create(self) -> Dispatcher;
 }
 
 #[cfg(test)]
@@ -95,7 +113,10 @@ mod tests {
 
     #[test]
     fn test_dispatchpacket_into_bytes() {
-        let packet = DispatchPacket { dispatch: 5, payload: vec![1, 2, 3]};
+        let packet = DispatchPacket {
+            dispatch: 5,
+            payload: vec![1, 2, 3],
+        };
         let bytes: Vec<u8> = packet.into();
         assert_eq!(bytes, vec![5, 1, 2, 3]);
     }

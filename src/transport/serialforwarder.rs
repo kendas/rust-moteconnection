@@ -7,89 +7,13 @@ use std::convert::{From, TryFrom};
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender, TryRecvError};
+use std::sync::mpsc::TryRecvError;
 use std::thread;
-use std::thread::JoinHandle;
 use std::time::Duration;
 
 use super::Transport;
 
 type Bytes = Vec<u8>;
-
-/// Manages the transportation of moteconnection packets over the TCP
-/// serial-formarder protocol.
-pub struct SFTransport {
-    send: Sender<Bytes>,
-    recv: Receiver<Bytes>,
-    halt: Sender<()>,
-    handle: JoinHandle<()>,
-}
-
-impl SFTransport {
-    /// Constructs a new `SFTransport` instance.
-    /// 
-    /// TODO(Kaarel): Usage
-    pub fn new(
-        addr: &SocketAddr,
-        // on_connect: Option<Box<dyn Fn()>>,
-        // on_disconnect: Option<Box<dyn Fn()>>,
-    ) -> Self {
-        let (outgoing_send, outgoing_recv) = mpsc::channel();
-        let (incoming_send, incoming_recv) = mpsc::channel();
-        let (control_send, control_recv) = mpsc::channel();
-        let addr = *addr;
-
-        let handle = thread::spawn(move || {
-            if let Ok(mut stream) = TcpStream::connect(addr) {
-                // if let Some(func) = on_connect {
-                //     func();
-                // }
-                do_handshake(&mut stream).unwrap();
-                while let Err(TryRecvError::Empty) = control_recv.try_recv() {
-                    if let Ok(Some(bytes)) = read_from_stream(&mut stream) {
-                        incoming_send.send(bytes).unwrap();
-                    }
-                    if let Ok(bytes) = outgoing_recv.try_recv() {
-                        write_to_stream(&mut stream, bytes).unwrap();
-                    }
-                }
-            }
-            // if let Some(func) = on_disconnect {
-            //     func();
-            // }
-        });
-        SFTransport {
-            send: outgoing_send,
-            recv: incoming_recv,
-            halt: control_send,
-            handle,
-        }
-    }
-}
-
-impl Transport for SFTransport {
-    fn send_packet(&self, data: Bytes) -> Result<(), &'static str> {
-        if self.send.send(data).is_err() {
-            Err("Data receiver closed!")
-        } else {
-            Ok(())
-        }
-    }
-
-    fn receive_packet(&self) -> Result<Bytes, TryRecvError> {
-        Ok(self.recv.try_recv()?)
-    }
-
-    fn stop(self) -> Result<(), &'static str> {
-        if self.halt.send(()).is_err() {
-            return Err("Control receiver closed!");
-        };
-        if self.handle.join().is_err() {
-            return Err("Unable to join thread!");
-        }
-        Ok(())
-    }
-}
 
 /// A builder object for `SFTransport`
 pub struct SFBuilder {
@@ -100,7 +24,7 @@ pub struct SFBuilder {
 
 impl SFBuilder {
     /// Creates a new `SFBuilder`
-    /// 
+    ///
     /// TODO(Kaarel): Usage
     pub fn new(addr: SocketAddr) -> Self {
         SFBuilder {
@@ -111,24 +35,49 @@ impl SFBuilder {
     }
 
     /// Registers a callback function for signaling a successful connection.
-    /// 
+    ///
     /// TODO(Kaarel): Usage
     pub fn on_connect(&mut self, callback: Box<dyn Fn()>) {
         self.connect_callback = Some(callback);
     }
 
     /// Registers a callback function for signaling a disconnect event.
-    /// 
+    ///
     /// TODO(Kaarel): Usage
     pub fn on_disconnect(&mut self, callback: Box<dyn Fn()>) {
         self.disconnect_callback = Some(callback);
     }
 
-    /// Creates an `SFTransport` object and starts its operation.
-    /// 
+    /// Creates a new `Transport` object that uses the SerialForwarder
+    /// protocol and starts its operation.
+    ///
     /// TODO(Kaarel): Usage
-    pub fn start(&self) -> SFTransport {
-        SFTransport::new(&self.addr)
+    pub fn start(&self) -> Transport {
+        let (outgoing_tx, outgoing_rx) = mpsc::channel();
+        let (incoming_tx, incoming_rx) = mpsc::channel();
+        let (control_tx, control_rx) = mpsc::channel();
+        let addr = self.addr;
+
+        let handle = thread::spawn(move || {
+            if let Ok(mut stream) = TcpStream::connect(addr) {
+                do_handshake(&mut stream).unwrap();
+                while let Err(TryRecvError::Empty) = control_rx.try_recv() {
+                    if let Ok(Some(bytes)) = read_from_stream(&mut stream) {
+                        outgoing_tx.send(bytes).unwrap();
+                    }
+                    if let Ok(bytes) = outgoing_rx.try_recv() {
+                        write_to_stream(&mut stream, bytes).unwrap();
+                    }
+                }
+            }
+        });
+
+        Transport {
+            tx: incoming_tx,
+            rx: incoming_rx,
+            halt: control_tx,
+            handle,
+        }
     }
 }
 

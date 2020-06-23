@@ -6,6 +6,7 @@ mod connection;
 pub mod dispatcher;
 pub mod transport;
 
-pub use connection::Connection;
+pub use connection::{Connection, ConnectionBuilder};
 pub use dispatcher::am::AMDispatcher;
 pub use dispatcher::raw::RawDispatcher;
+pub use dispatcher::{Dispatcher, DispatcherBuilder};

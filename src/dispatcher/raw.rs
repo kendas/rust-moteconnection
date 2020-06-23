@@ -3,30 +3,49 @@
 //! It can be used as a debug dispatcher when a dispatcher does not exist
 //! for a particular packet.
 use std::convert::From;
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc;
+use std::sync::mpsc::{Receiver, Sender};
 
-use super::Dispatcher;
+use super::{Bytes, Dispatcher, DispatcherBuilder, DispatcherHandle};
 
-/// Implements the `Dispatcher` trait for unknown dispatch schemes.
-///
-/// TODO(Kaarel)
+/// Handles the dispatching of raw packets without interpreting the contents.
 pub struct RawDispatcher {
     dispatch: u8,
+    /// The receiver
+    pub rx: Receiver<Bytes>,
+    /// The sender
+    pub tx: Sender<Bytes>,
+    transport_rx: Receiver<Bytes>,
+    transport_tx: Sender<Bytes>,
 }
 
 impl RawDispatcher {
-    /// Creates a new instance of the `RawDispatcher`.
-    ///
-    /// The `dispatch` byte is used to select the dispatcher scheme.
-    /// 
-    /// TODO(Kaarel): Usage
-    pub fn new(dispatch: u8) -> Self {
-        RawDispatcher { dispatch }
+    /// Creates a raw packet dispatcher
+    pub fn new(dispatch: u8) -> RawDispatcher {
+        let (transport_tx, rx) = mpsc::channel();
+        let (tx, transport_rx) = mpsc::channel();
+        RawDispatcher {
+            dispatch,
+            rx,
+            tx,
+            transport_rx,
+            transport_tx,
+        }
     }
 }
 
-impl Dispatcher for RawDispatcher {
-    fn dispatch_byte(&self) -> u8 {
-        self.dispatch
+impl DispatcherBuilder for RawDispatcher {
+    fn create(self) -> Dispatcher {
+        Dispatcher {
+            dispatch_byte: self.dispatch,
+            handle: Arc::new(Mutex::new(DispatcherHandle {
+                rx: self.transport_rx,
+                tx: self.transport_tx,
+            })),
+            rx: self.rx,
+            tx: self.tx,
+        }
     }
 }
 
