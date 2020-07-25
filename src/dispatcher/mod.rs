@@ -8,31 +8,32 @@
 //! - ActiveMessage (ID=`0x00`)
 //! - Raw (ID=any)
 use std::convert::TryFrom;
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
+
+use crate::Bytes;
 
 pub mod am;
 pub mod raw;
 
-type Bytes = Vec<u8>;
-
-/// A dispatcher handle
-///
-/// TODO(Kaarel)
-pub struct Dispatcher {
-    dispatch_byte: u8,
-
-    handle: Arc<Mutex<DispatcherHandle>>,
-
-    /// Lets the user receive data from the serial device.
-    pub rx: Receiver<Bytes>,
-    /// Lets the user send data to the serial device.
-    pub tx: Sender<Bytes>,
+/// The types of messages sent to or from the Dispatcher
+#[derive(Debug)]
+pub enum Event {
+    /// Contains any data being sent.
+    Data(Bytes),
+    /// Signals the stopping of the connection.
+    Stop,
+    /// Signals that there is an error.
+    Error,
 }
 
-pub(crate) struct DispatcherHandle {
-    rx: Receiver<Bytes>,
-    tx: Sender<Bytes>,
+/// Provides a handle representing the dispatcher for the `Connection`.
+pub struct DispatcherHandle {
+    /// The sender end for the `Connection`
+    pub tx: Sender<Event>,
+    /// The receiver end for the `Connection`
+    pub rx: Receiver<Event>,
+    /// The stopper function for the `Dispatcher`
+    pub stopper: Box<dyn FnOnce() -> Result<(), &'static str>>,
 }
 
 /// A packet with the dispatch byte and a payload.
@@ -44,14 +45,30 @@ pub struct DispatchPacket {
     pub payload: Vec<u8>,
 }
 
-impl Dispatcher {
-    /// The dispatch byte of this dispatcher.
-    pub fn dispatch_byte(&self) -> u8 {
-        self.dispatch_byte
+/// Handles the dispatching of messages between the user and the trasport layer.
+///
+/// TODO(Kaarel)
+pub trait Dispatcher {
+    /// Returns the dispatch byte used.
+    fn dispatch_byte(&self) -> u8;
+
+    /// Emits a DispatcherHandle for the connection to use.
+    fn get_handle(&mut self) -> DispatcherHandle;
+}
+
+impl DispatcherHandle {
+    /// Creates a new DispatcherHandle.
+    pub fn new(tx: Sender<Event>, rx: Receiver<Event>) -> DispatcherHandle {
+        DispatcherHandle::with_stopper(tx, rx, Box::new(|| Ok(())))
     }
 
-    pub(crate) fn get_handle(&self) -> Arc<Mutex<DispatcherHandle>> {
-        self.handle.clone()
+    /// Creates a new DispatcherHandle with a function to be called when stopping.
+    pub fn with_stopper(
+        tx: Sender<Event>,
+        rx: Receiver<Event>,
+        stopper: Box<dyn FnOnce() -> Result<(), &'static str>>,
+    ) -> DispatcherHandle {
+        DispatcherHandle { tx, rx, stopper }
     }
 }
 
@@ -74,14 +91,6 @@ impl Into<Vec<u8>> for DispatchPacket {
         result.extend([self.dispatch].iter().chain(self.payload.iter()));
         result
     }
-}
-
-/// A dispatcher dispatches incoming packets to interested listeners.
-///
-/// TODO(Kaarel)
-pub trait DispatcherBuilder {
-    /// Creates the dispatcher
-    fn create(self) -> Dispatcher;
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-//! The rust implementations of the moteconnection library.
+//! The rust implementation of the moteconnection library.
 #![deny(missing_docs)]
 #![deny(clippy::all)]
 
@@ -9,4 +9,7 @@ pub mod transport;
 pub use connection::{Connection, ConnectionBuilder};
 pub use dispatcher::am::AMDispatcher;
 pub use dispatcher::raw::RawDispatcher;
-pub use dispatcher::{Dispatcher, DispatcherBuilder};
+pub use dispatcher::Dispatcher;
+
+/// The way bytes are represented in the crate
+pub type Bytes = Vec<u8>;

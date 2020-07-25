@@ -28,41 +28,23 @@
 //! There is some more information in the [Serial protocol][1] documentation.
 //!
 //! [1]: https://github.com/proactivity-lab/docs/wiki/Serial-protocol
-use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
-use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex};
 
-use super::raw::RawDispatcher;
-use super::{Dispatcher, DispatcherBuilder};
+use super::Dispatcher;
 
-/// Allows the receiving and sending of ActiveMessage packets.
-pub struct AMReceiver {
-    /// The sender for ActiveMessage packets.
-    pub tx: Sender<Message>,
-    /// The receiver for ActiveMessage packets.
-    pub rx: Receiver<Message>,
-    handle: Arc<Mutex<AMReceiverHandle>>,
-}
+mod dispatcher;
+mod receiver;
 
-struct AMReceiverHandle {
-    tx: Sender<Message>,
-    rx: Receiver<Message>,
-}
+pub use dispatcher::{AMDispatcher, AMDispatcherBuilder};
+pub use receiver::AMReceiver;
 
-/// Implements the `Dispatcher` trait for the ActiveMessage dispatch scheme.
-///
-/// TODO(Kaarel)
-pub struct AMDispatcher {
-    dispatcher: Dispatcher,
-    addr: u16,
-    group: u8,
-    receivers: HashMap<u8, Arc<Mutex<AMReceiverHandle>>>,
-    default_receiver: Option<Arc<Mutex<AMReceiverHandle>>>,
-    snoopers: HashMap<u8, Arc<Mutex<AMReceiverHandle>>>,
-    default_snooper: Option<Arc<Mutex<AMReceiverHandle>>>,
-}
+const DEST_START: usize = 0;
+const SRC_START: usize = 2;
+const LENGTH_START: usize = 4;
+const GROUP_START: usize = 5;
+const ID_START: usize = 6;
+const PAYLOAD_START: usize = 7;
+const MINIMUM_LENGTH: u8 = 7;
 
 /// An ActiveMessage packet
 ///
@@ -98,117 +80,6 @@ pub struct Message {
     /// An optional metadata component
     pub metadata: Vec<u8>,
 }
-
-impl AMReceiver {
-    /// Creates a new instance of an AMReceiver.
-    pub fn new() -> AMReceiver {
-        AMReceiver::default()
-    }
-
-    fn get_handle(&self) -> Arc<Mutex<AMReceiverHandle>> {
-        self.handle.clone()
-    }
-}
-
-impl Default for AMReceiver {
-    fn default() -> AMReceiver {
-        let (handle_tx, rx) = mpsc::channel();
-        let (tx, handle_rx) = mpsc::channel();
-        AMReceiver {
-            tx,
-            rx,
-            handle: Arc::new(Mutex::new(AMReceiverHandle {
-                tx: handle_tx,
-                rx: handle_rx,
-            })),
-        }
-    }
-}
-
-impl AMDispatcher {
-    /// Creates a new `AMDispatcher` that listens on the default 0x22 group.
-    pub fn new(addr: u16) -> Self {
-        AMDispatcher::with_group(addr, 0x22)
-    }
-
-    /// Creates a new `AMDispatcher` that listens on the group provided.
-    pub fn with_group(addr: u16, group: u8) -> Self {
-        AMDispatcher {
-            dispatcher: RawDispatcher::new(0x00).create(),
-            addr,
-            group,
-            receivers: HashMap::new(),
-            default_receiver: None,
-            snoopers: HashMap::new(),
-            default_snooper: None,
-        }
-    }
-
-    /// Registers a receiver as the receiver for a specific AM ID.
-    ///
-    /// Receivers handle all packets that are intended for the
-    /// dispatcher address or the broadcast address.
-    pub fn register_receiver(&mut self, receiver: &AMReceiver, id: u8) -> &AMDispatcher {
-        self.receivers.insert(id, receiver.get_handle());
-        self
-    }
-
-    /// Registers a receiver as the receiver for a specific AM ID.
-    ///
-    /// Receivers handle all packets that are intended for the
-    /// dispatcher address or the broadcast address.
-    ///
-    /// The default receiver handles all packets that have not been handled
-    /// by another receiver.
-    pub fn register_default_receiver(&mut self, receiver: &AMReceiver) -> &AMDispatcher {
-        self.default_receiver = Some(receiver.get_handle());
-        self
-    }
-
-    /// Registers a receiver as the snooper for a specific AM ID.
-    ///
-    /// Snoopers handle all packets that are not intended for the
-    /// dispatcher address or the broadcast address.
-    pub fn register_snooper(&mut self, receiver: &AMReceiver, id: u8) -> &AMDispatcher {
-        self.snoopers.insert(id, receiver.get_handle());
-        self
-    }
-
-    /// Registers a receiver as the default snooper.
-    ///
-    /// Snoopers handle all packets that are not intended for the
-    /// dispatcher address or the broadcast address.
-    ///
-    /// The default snooper handles all packets that have not been handled
-    /// by another snooper.
-    pub fn register_default_snooper(&mut self, receiver: &AMReceiver) -> &AMDispatcher {
-        self.default_snooper = Some(receiver.get_handle());
-        self
-    }
-}
-
-impl DispatcherBuilder for AMDispatcher {
-    fn create(self) -> Dispatcher {
-        self.dispatcher
-    }
-}
-
-// impl Default for AMDispatcher {
-//     fn default() -> Self {
-//         AMDispatcher {
-//             dispatcher: RawDispatcher::new(0x00),
-//             receivers: Arc::new(Mutex::new(HashMap::new())),
-//         }
-//     }
-// }
-
-const DEST_START: usize = 0;
-const SRC_START: usize = 2;
-const LENGTH_START: usize = 4;
-const GROUP_START: usize = 5;
-const ID_START: usize = 6;
-const PAYLOAD_START: usize = 7;
-const MINIMUM_LENGTH: u8 = 7;
 
 /// Represents the types of errors that constructiong a `Message` can produce.
 #[derive(Debug)]

@@ -3,42 +3,39 @@
 //!
 //! A transport layer is responsible the low level communication between
 //! the radio module to the `moteconnection` library.
-use std::sync::mpsc::{Receiver, Sender, TryRecvError, TrySendError};
-use std::thread::JoinHandle;
+use std::sync::mpsc::{Receiver, Sender};
+
+use crate::Bytes;
 
 pub mod serial;
 pub mod serialforwarder;
 
-type Bytes = Vec<u8>;
+/// Lists events that can be sent to and from the Transport implementation.
+#[derive(Debug)]
+pub enum Event {
+    /// The connection has been established.
+    Connected,
+    /// The connection has been closed.
+    Disconnected,
+    /// Contains the data to be sent or has been received.
+    Data(Bytes),
+    /// Signals the shutdown of the transport.
+    Stop,
+}
 
-/// Manages the transportation of moteconnection packets over the TCP
-/// serial-formarder protocol.
-pub struct Transport {
-    tx: Sender<Bytes>,
-    rx: Receiver<Bytes>,
-    halt: Sender<()>,
-    handle: JoinHandle<()>,
+/// Provides a handle for the use in `Connection`.
+pub struct TransportHandle {
+    /// The sender for the outging channel
+    pub tx: Sender<Event>,
+    /// the receiver for the incoming channel
+    pub rx: Receiver<Event>,
 }
 
 /// An object responsible for the transportation of moteconnection packets.
-impl Transport {
-    /// Sends a message to the connected device.
-    fn send_packet(&self, data: Bytes) -> Result<(), TrySendError<Bytes>> {
-        self.tx.send(data)?;
-        Ok(())
-    }
-    /// Receives a message from the connected device.
-    fn receive_packet(&self) -> Result<Bytes, TryRecvError> {
-        Ok(self.rx.try_recv()?)
-    }
+pub trait Transport {
     /// Stops an already open connection.
-    pub fn stop(self) -> Result<(), &'static str> {
-        if self.halt.send(()).is_err() {
-            return Err("Control receiver closed!");
-        };
-        if self.handle.join().is_err() {
-            return Err("Unable to join thread!");
-        }
-        Ok(())
-    }
+    fn stop(self) -> Result<(), &'static str>;
+
+    /// Returns the handle for the transport.
+    fn get_handle(&mut self) -> TransportHandle;
 }

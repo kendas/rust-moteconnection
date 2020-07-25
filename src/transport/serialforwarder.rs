@@ -5,21 +5,37 @@
 //! [1]: https://github.com/proactivity-lab/docs/wiki/SerialForwarder-protocol
 use std::convert::{From, TryFrom};
 use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+use std::net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::mpsc;
-use std::sync::mpsc::TryRecvError;
-use std::thread;
-use std::time::Duration;
+use std::sync::mpsc::{Receiver, Sender};
+use std::thread::{Builder, JoinHandle};
 
-use super::Transport;
-
-type Bytes = Vec<u8>;
+use super::{Event, Transport, TransportHandle};
+use crate::Bytes;
 
 /// A builder object for `SFTransport`
 pub struct SFBuilder {
     addr: SocketAddr,
     connect_callback: Option<Box<dyn Fn()>>,
     disconnect_callback: Option<Box<dyn Fn()>>,
+}
+
+/// Manages the transportation of moteconnection packets over the TCP
+/// serial-forwarder protocol.
+pub struct SFTransport {
+    transport_tx: Sender<Event>,
+    transport_handle: Option<TransportHandle>,
+    join_handle: JoinHandle<()>,
+}
+
+struct TcpWorker {
+    stream: TcpStream,
+    tx: Sender<Event>,
+}
+
+struct ConnectionWorker<'a> {
+    rx: &'a Receiver<Event>,
+    stream: TcpStream,
 }
 
 impl SFBuilder {
@@ -52,31 +68,60 @@ impl SFBuilder {
     /// protocol and starts its operation.
     ///
     /// TODO(Kaarel): Usage
-    pub fn start(&self) -> Transport {
-        let (outgoing_tx, outgoing_rx) = mpsc::channel();
-        let (incoming_tx, incoming_rx) = mpsc::channel();
-        let (control_tx, control_rx) = mpsc::channel();
+    pub fn start(&self) -> SFTransport {
+        let (tcp_tx, transport_rx) = mpsc::channel();
+        let (transport_tx, tcp_rx) = mpsc::channel();
         let addr = self.addr;
 
-        let handle = thread::spawn(move || {
-            if let Ok(mut stream) = TcpStream::connect(addr) {
-                do_handshake(&mut stream).unwrap();
-                while let Err(TryRecvError::Empty) = control_rx.try_recv() {
-                    if let Ok(Some(bytes)) = read_from_stream(&mut stream) {
-                        outgoing_tx.send(bytes).unwrap();
-                    }
-                    if let Ok(bytes) = outgoing_rx.try_recv() {
-                        write_to_stream(&mut stream, bytes).unwrap();
+        let join_handle = Builder::new()
+            .name("sf-write".into())
+            .spawn(move || {
+                let mut stop = false;
+                while !stop {
+                    if let Ok(mut stream) = TcpStream::connect(addr) {
+                        if do_handshake(&mut stream).is_err() {
+                            tcp_tx.send(Event::Disconnected).unwrap();
+                            continue;
+                        }
+                        tcp_tx.send(Event::Connected).unwrap();
+
+                        let thread_tx = tcp_tx.clone();
+                        let thread_stream = stream.try_clone().unwrap();
+
+                        let read_handle = Builder::new()
+                            .name("sf-read".into())
+                            .spawn(move || {
+                                TcpWorker {
+                                    stream: thread_stream,
+                                    tx: thread_tx,
+                                }
+                                .start();
+                            })
+                            .unwrap();
+
+                        {
+                            let mut worker = ConnectionWorker {
+                                rx: &tcp_rx,
+                                stream: stream.try_clone().unwrap(),
+                            };
+                            stop = worker.start();
+                        }
+
+                        stream.shutdown(Shutdown::Both).unwrap();
+                        tcp_tx.send(Event::Disconnected).unwrap();
+                        read_handle.join().unwrap();
                     }
                 }
-            }
-        });
+            })
+            .unwrap();
 
-        Transport {
-            tx: incoming_tx,
-            rx: incoming_rx,
-            halt: control_tx,
-            handle,
+        SFTransport {
+            transport_tx: transport_tx.clone(),
+            transport_handle: Some(TransportHandle {
+                tx: transport_tx,
+                rx: transport_rx,
+            }),
+            join_handle,
         }
     }
 }
@@ -110,6 +155,83 @@ impl TryFrom<String> for SFBuilder {
     }
 }
 
+impl Transport for SFTransport {
+    fn stop(self) -> Result<(), &'static str> {
+        if self.transport_tx.send(Event::Stop).is_err() {
+            return Err("SFTransport thread already closed!");
+        }
+        if self.join_handle.join().is_err() {
+            return Err("Unable to join thread!");
+        }
+        Ok(())
+    }
+
+    fn get_handle(&mut self) -> TransportHandle {
+        self.transport_handle.take().unwrap()
+    }
+}
+
+impl TcpWorker {
+    fn start(&mut self) {
+        while let Ok(data) = self.read_from_stream() {
+            if !data.is_empty() {
+                self.tx.send(Event::Data(data)).unwrap();
+            }
+        }
+    }
+
+    fn read_from_stream(&mut self) -> Result<Bytes, std::io::Error> {
+        let mut packet_length: [u8; 1] = [0];
+        self.stream.read_exact(&mut packet_length)?;
+        // We know a packet is coming. Disable read timeout.
+        self.stream.set_read_timeout(None)?;
+        let mut packet_buf = vec![0; packet_length[0] as usize];
+        self.stream.read_exact(&mut packet_buf[..])?;
+        Ok(packet_buf)
+    }
+}
+
+impl<'a> ConnectionWorker<'a> {
+    fn start(&mut self) -> bool {
+        loop {
+            match self.rx.recv() {
+                Ok(v) => match v {
+                    Event::Data(d) => match self.write_to_stream(d) {
+                        Err(e) => {
+                            if e.kind() == std::io::ErrorKind::InvalidInput {
+                                // TODO(Kaarel): Do something useful!
+                            } else {
+                                // TODO(Kaarel): Do logging!
+                                return false;
+                            }
+                        }
+                        Ok(()) => {}
+                    },
+                    Event::Stop => {
+                        return true;
+                    }
+                    e => panic!(format!("Unexpected event {:?}", e)),
+                },
+                Err(e) => panic!(format!("Receive error! {:?}", e)),
+            }
+        }
+    }
+
+    fn write_to_stream(&mut self, data: Bytes) -> Result<(), std::io::Error> {
+        use std::io::{Error, ErrorKind};
+        if let Ok(length) = u8::try_from(data.len()) {
+            self.stream.write_all(&[length])?;
+            self.stream.write_all(&data[..])?;
+            Ok(())
+        } else {
+            Err(Error::new(
+                ErrorKind::InvalidData,
+                "Packet size must not exceed 255!",
+            ))
+        }
+    }
+}
+
 fn do_handshake(stream: &mut TcpStream) -> Result<(), &'static str> {
     const PROTOCOL: u8 = 0x55;
     const VERSION: u8 = 0x20;
@@ -131,41 +253,6 @@ fn do_handshake(stream: &mut TcpStream) -> Result<(), &'static str> {
         }
         Ok(_) => Err("Handshake length was incorrect!"),
         Err(_) => Err("Error while establishing connection!"),
-    }
-}
-
-fn read_from_stream(stream: &mut TcpStream) -> Result<Option<Bytes>, std::io::Error> {
-    use std::io::ErrorKind;
-
-    stream.set_read_timeout(Some(Duration::from_nanos(1)))?;
-    let mut packet_length: [u8; 1] = [0];
-    if let Err(err) = stream.read_exact(&mut packet_length) {
-        match err.kind() {
-            ErrorKind::WouldBlock => return Ok(None),
-            ErrorKind::TimedOut => return Ok(None),
-            _ => return Err(err),
-        }
-    }
-
-    // We know a packet is coming. Disable read timeout.
-    stream.set_read_timeout(None)?;
-    let mut packet_buf = vec![0; packet_length[0] as usize];
-    stream.read_exact(&mut packet_buf[..])?;
-
-    Ok(Some(packet_buf))
-}
-
-fn write_to_stream(stream: &mut TcpStream, data: Bytes) -> Result<(), std::io::Error> {
-    use std::io::{Error, ErrorKind};
-    if let Ok(length) = u8::try_from(data.len()) {
-        stream.write_all(&[length])?;
-        stream.write_all(&data[..])?;
-        Ok(())
-    } else {
-        Err(Error::new(
-            ErrorKind::InvalidData,
-            "Packet size must not exceed 255!",
-        ))
     }
 }
 
@@ -213,7 +300,7 @@ mod tests {
     fn test_stream_write() {
         const SERVER_ADDR: &str = "localhost:7879";
         let listener = TcpListener::bind(SERVER_ADDR).unwrap();
-        let mut client_stream = TcpStream::connect(SERVER_ADDR).unwrap();
+        let client_stream = TcpStream::connect(SERVER_ADDR).unwrap();
         let mut server_stream = listener.incoming().next().unwrap().unwrap();
 
         let data = vec![0, 1, 2, 3, 4, 5];
@@ -221,7 +308,13 @@ mod tests {
         expected_result.append(&mut data.clone());
         let expected_result = expected_result;
 
-        let result = write_to_stream(&mut client_stream, data);
+        let (_, rx) = mpsc::channel();
+        let mut worker = ConnectionWorker {
+            rx: &rx,
+            stream: client_stream.try_clone().unwrap(),
+        };
+
+        let result = worker.write_to_stream(data);
         client_stream.shutdown(Shutdown::Both).unwrap();
 
         assert!(result.is_ok());
@@ -237,35 +330,51 @@ mod tests {
     fn test_stream_read_success() {
         const SERVER_ADDR: &str = "localhost:7880";
         let listener = TcpListener::bind(SERVER_ADDR).unwrap();
-        let mut client_stream = TcpStream::connect(SERVER_ADDR).unwrap();
+        let client_stream = TcpStream::connect(SERVER_ADDR).unwrap();
         let mut server_stream = listener.incoming().next().unwrap().unwrap();
 
         let expected_result = vec![0, 1, 2, 3, 4, 5];
         let mut data = vec![u8::try_from(expected_result.len()).unwrap()];
         data.append(&mut expected_result.clone());
         let data = data;
-        println!("{:?}", data);
+
+        let (tx, _) = mpsc::channel();
+        let mut worker = TcpWorker {
+            stream: client_stream.try_clone().unwrap(),
+            tx,
+        };
 
         server_stream.write_all(&data[..]).unwrap();
         server_stream.shutdown(Shutdown::Both).unwrap();
 
-        let result = read_from_stream(&mut client_stream).unwrap();
+        let result = worker.read_from_stream().unwrap();
         client_stream.shutdown(Shutdown::Both).unwrap();
 
-        assert_eq!(result, Some(expected_result));
+        assert_eq!(result, expected_result);
     }
 
     #[test]
-    fn test_stream_read_timeout() {
+    fn test_stop() {
         const SERVER_ADDR: &str = "localhost:7881";
         let listener = TcpListener::bind(SERVER_ADDR).unwrap();
-        let mut client_stream = TcpStream::connect(SERVER_ADDR).unwrap();
-        let server_stream = listener.incoming().next().unwrap().unwrap();
+        let transport = SFBuilder::try_from(String::from(SERVER_ADDR))
+            .unwrap()
+            .start();
 
-        let result = read_from_stream(&mut client_stream).unwrap();
-        client_stream.shutdown(Shutdown::Both).unwrap();
-        server_stream.shutdown(Shutdown::Both).unwrap();
+        let data = b"U ";
+        let mut server_stream = listener.incoming().next().unwrap().unwrap();
+        server_stream.write_all(data).unwrap();
+        let mut handshake = [0, 0];
+        server_stream.read_exact(&mut handshake).unwrap();
+        assert_eq!(handshake, [0x55, 0x20]);
 
-        assert!(result.is_none());
+        transport.stop().unwrap();
+
+        let mut read_buf = vec![];
+        match server_stream.read_to_end(&mut read_buf) {
+            Ok(0) => {}
+            v => panic!(format!("Expected a closed stream, got {:?}", v)),
+        }
+        assert_eq!(read_buf, vec![]);
     }
 }

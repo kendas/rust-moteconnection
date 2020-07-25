@@ -3,21 +3,19 @@
 //! It can be used as a debug dispatcher when a dispatcher does not exist
 //! for a particular packet.
 use std::convert::From;
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
-use super::{Bytes, Dispatcher, DispatcherBuilder, DispatcherHandle};
+use super::{Dispatcher, DispatcherHandle, Event};
 
 /// Handles the dispatching of raw packets without interpreting the contents.
 pub struct RawDispatcher {
     dispatch: u8,
     /// The receiver
-    pub rx: Receiver<Bytes>,
+    pub rx: Receiver<Event>,
     /// The sender
-    pub tx: Sender<Bytes>,
-    transport_rx: Receiver<Bytes>,
-    transport_tx: Sender<Bytes>,
+    pub tx: Sender<Event>,
+    handle: Option<DispatcherHandle>,
 }
 
 impl RawDispatcher {
@@ -29,23 +27,28 @@ impl RawDispatcher {
             dispatch,
             rx,
             tx,
-            transport_rx,
-            transport_tx,
+            handle: Some(DispatcherHandle::new(transport_tx, transport_rx)),
         }
+    }
+
+    /// Returns the receiver for data from the serial device.
+    pub fn rx(&self) -> &Receiver<Event> {
+        &self.rx
+    }
+
+    /// Returns the sender for data to the serial device.
+    pub fn tx(&self) -> &Sender<Event> {
+        &self.tx
     }
 }
 
-impl DispatcherBuilder for RawDispatcher {
-    fn create(self) -> Dispatcher {
-        Dispatcher {
-            dispatch_byte: self.dispatch,
-            handle: Arc::new(Mutex::new(DispatcherHandle {
-                rx: self.transport_rx,
-                tx: self.transport_tx,
-            })),
-            rx: self.rx,
-            tx: self.tx,
-        }
+impl Dispatcher for RawDispatcher {
+    fn dispatch_byte(&self) -> u8 {
+        self.dispatch
+    }
+
+    fn get_handle(&mut self) -> DispatcherHandle {
+        self.handle.take().unwrap()
     }
 }
 
