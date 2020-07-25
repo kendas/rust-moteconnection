@@ -19,7 +19,6 @@ mod harness {
     use std::sync::mpsc;
     use std::sync::mpsc::{Receiver, Sender};
 
-    use moteconnection::dispatcher;
     use moteconnection::transport::{Event, Transport, TransportHandle};
     use moteconnection::Bytes;
 
@@ -97,40 +96,6 @@ mod harness {
             guard.take().unwrap()
         }
     }
-
-    // pub struct TestDispatcher {
-    //     pub internal_tx: Sender<dispatcher::Event>,
-    //     pub internal_rx: Receiver<dispatcher::Event>,
-    //     pub dispatch_byte: u8,
-    //     pub handle: Option<dispatcher::DispatcherHandle>,
-    // }
-
-    // impl TestDispatcher {
-    //     pub fn new() -> TestDispatcher {
-    //         TestDispatcher::with_dispatch_byte(0x00)
-    //     }
-
-    //     pub fn with_dispatch_byte(dispatch_byte: u8) -> TestDispatcher {
-    //         let (internal_tx, rx) = mpsc::channel();
-    //         let (tx, internal_rx) = mpsc::channel();
-    //         TestDispatcher {
-    //             internal_tx,
-    //             internal_rx,
-    //             dispatch_byte,
-    //             handle: Some(dispatcher::DispatcherHandle::new(tx, rx))
-    //         }
-    //     }
-    // }
-
-    // impl dispatcher::Dispatcher for TestDispatcher {
-    //     fn dispatch_byte(&self) -> u8 {
-    //         self.dispatch_byte
-    //     }
-
-    //     fn get_handle(&mut self) -> dispatcher::DispatcherHandle {
-    //         self.handle.take().unwrap()
-    //     }
-    // }
 }
 
 #[test]
