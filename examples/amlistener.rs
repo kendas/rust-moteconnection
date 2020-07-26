@@ -14,6 +14,7 @@ fn main() {
 
     let mut dispatcher = AMDispatcherBuilder::new(0x0000);
     let mut receiver = AMReceiver::new();
+    dispatcher.register_default_receiver(&mut receiver);
     dispatcher.register_default_snooper(&mut receiver);
     let mut dispatcher = dispatcher.create();
 
