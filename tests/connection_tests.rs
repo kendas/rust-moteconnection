@@ -51,6 +51,7 @@ mod harness {
             self.stream.as_ref().unwrap().write_all(data).unwrap();
         }
 
+        #[allow(dead_code)]
         pub fn read(&mut self, length: usize) -> Bytes {
             let mut packet_buf = vec![0; length];
             self.stream
