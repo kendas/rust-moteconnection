@@ -6,7 +6,6 @@
 use std::env;
 
 use moteconnection::dispatcher::am::{AMDispatcherBuilder, AMReceiver};
-use moteconnection::transport::serialforwarder::SFTransport;
 use moteconnection::ConnectionBuilder;
 
 fn main() {
@@ -18,7 +17,7 @@ fn main() {
     dispatcher.register_default_snooper(&mut receiver);
     let mut dispatcher = dispatcher.create();
 
-    let _connection = ConnectionBuilder::<SFTransport>::with_connection_string(addr)
+    let _connection = ConnectionBuilder::with_connection_string(addr)
         .unwrap()
         .register_dispatcher(&mut dispatcher)
         .start();

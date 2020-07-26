@@ -9,23 +9,15 @@ use std::net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
-use std::thread::{Builder, JoinHandle};
+use std::thread::Builder;
 use std::time::Duration;
 
-use super::{Event, Transport, TransportHandle};
+use super::{Event, TransportBuilder, Transport};
 use crate::Bytes;
 
 /// A builder object for `SFTransport`
 pub struct SFBuilder {
     addr: SocketAddr,
-}
-
-/// Manages the transportation of moteconnection packets over the TCP
-/// serial-forwarder protocol.
-pub struct SFTransport {
-    transport_tx: Sender<Event>,
-    transport_handle: Option<TransportHandle>,
-    join_handle: JoinHandle<()>,
 }
 
 struct TcpWorker {
@@ -45,12 +37,14 @@ impl SFBuilder {
     pub fn new(addr: SocketAddr) -> Self {
         SFBuilder { addr }
     }
+}
 
+impl TransportBuilder for SFBuilder {
     /// Creates a new `Transport` object that uses the SerialForwarder
     /// protocol and starts its operation.
     ///
     /// TODO(Kaarel): Usage
-    pub fn start(&self) -> SFTransport {
+    fn start(&self) -> Transport {
         let (tcp_tx, transport_rx) = mpsc::channel();
         let (transport_tx, tcp_rx) = mpsc::channel();
         let addr = self.addr;
@@ -101,14 +95,19 @@ impl SFBuilder {
             })
             .unwrap();
 
-        SFTransport {
-            transport_tx: transport_tx.clone(),
-            transport_handle: Some(TransportHandle {
-                tx: transport_tx,
-                rx: transport_rx,
-            }),
-            join_handle,
-        }
+        Transport::with_stopper(
+            transport_tx.clone(),
+            transport_rx,
+            Box::new(move || {
+                if transport_tx.send(Event::Stop).is_err() {
+                    return Err("SFTransport thread already closed!");
+                }
+                if join_handle.join().is_err() {
+                    return Err("Unable to join thread!");
+                }
+                Ok(())
+            })
+        )
     }
 }
 
@@ -134,22 +133,6 @@ impl TryFrom<String> for SFBuilder {
                 "Unable to resolve the address",
             )),
         }
-    }
-}
-
-impl Transport for SFTransport {
-    fn stop(self) -> Result<(), &'static str> {
-        if self.transport_tx.send(Event::Stop).is_err() {
-            return Err("SFTransport thread already closed!");
-        }
-        if self.join_handle.join().is_err() {
-            return Err("Unable to join thread!");
-        }
-        Ok(())
-    }
-
-    fn get_handle(&mut self) -> TransportHandle {
-        self.transport_handle.take().unwrap()
     }
 }
 
@@ -350,7 +333,7 @@ mod tests {
         server_stream.read_exact(&mut handshake).unwrap();
         assert_eq!(handshake, [0x55, 0x20]);
 
-        transport.stop().unwrap();
+        (transport.stopper)().unwrap();
 
         let mut read_buf = vec![];
         match server_stream.read_to_end(&mut read_buf) {

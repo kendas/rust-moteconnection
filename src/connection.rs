@@ -13,8 +13,8 @@ use std::time::Duration;
 use regex::Regex;
 
 use crate::dispatcher::{Dispatcher, DispatcherHandle, Event as DEvent};
-use crate::transport::serialforwarder::{SFBuilder, SFTransport};
-use crate::transport::{Event as TEvent, Transport};
+use crate::transport::serialforwarder::SFBuilder;
+use crate::transport::{Event as TEvent, TransportBuilder, Transport};
 
 type DispatchTxs = HashMap<u8, Sender<DEvent>>;
 type DispatchRxs = HashMap<u8, Receiver<DEvent>>;
@@ -28,8 +28,8 @@ type DispatchStoppers = HashMap<u8, Box<dyn FnOnce() -> Result<(), &'static str>
 /// - serialforwarder
 ///
 /// TODO(Kaarel): Usage
-pub struct Connection<T: Transport> {
-    transport: T,
+pub struct Connection {
+    transport: Transport,
     control_tx: Sender<()>,
     dispatchers: DispatchStoppers,
     join_handle: JoinHandle<()>,
@@ -38,9 +38,9 @@ pub struct Connection<T: Transport> {
 /// A builder for the connection struct
 ///
 /// TODO(Kaarel): Usage
-pub struct ConnectionBuilder<T: Transport> {
+pub struct ConnectionBuilder {
     dispatchers: HashMap<u8, DispatcherHandle>,
-    transport: T,
+    transport: Box<dyn TransportBuilder>,
 }
 
 struct TransportWorker {
@@ -58,17 +58,18 @@ struct DispatcherWorker {
     tx: Sender<TEvent>,
 }
 
-impl<T: Transport> Connection<T> {
+impl Connection {
     /// Constructs a new instance of the `Connection` struct.
     ///
     /// TODO(Kaarel): Usage
     pub fn new(
-        mut transport: T,
+        mut transport_builder: Box<dyn TransportBuilder>,
         dispatchers: HashMap<u8, DispatcherHandle>,
-    ) -> Result<Connection<T>, String> {
+    ) -> Result<Connection, String> {
         let (control_tx, control_rx) = mpsc::channel();
 
         let (txs, mut rxs, stoppers) = decompose_dispatch_handles(dispatchers);
+        let mut transport = transport_builder.start();
         let transport_handle = transport.get_handle();
         let transport_tx = transport_handle.tx.clone();
 
@@ -157,20 +158,16 @@ impl<T: Transport> Connection<T> {
     }
 }
 
-impl<T: Transport> ConnectionBuilder<T> {
+impl ConnectionBuilder {
     /// Creates a new ConnectionBuilder
-    pub fn with_connection_string(
-        connection_string: String,
-    ) -> Result<ConnectionBuilder<SFTransport>, String> {
-        Ok(ConnectionBuilder::with_transport(ConnectionBuilder::<
-            SFTransport,
-        >::build_transport(
-            &connection_string
-        )?))
+    pub fn with_connection_string(connection_string: String) -> Result<ConnectionBuilder, String> {
+        Ok(ConnectionBuilder::with_transport(
+            ConnectionBuilder::build_transport(&connection_string)?,
+        ))
     }
 
     /// Creates a new ConenctionBuilder using a pre-built transport
-    pub fn with_transport(transport: T) -> ConnectionBuilder<T> {
+    pub fn with_transport(transport: Box<dyn TransportBuilder>) -> ConnectionBuilder {
         ConnectionBuilder {
             dispatchers: HashMap::new(),
             transport,
@@ -184,14 +181,13 @@ impl<T: Transport> ConnectionBuilder<T> {
     /// ```rust
     /// use moteconnection::ConnectionBuilder;
     /// use moteconnection::dispatcher::am::{AMDispatcherBuilder, AMReceiver};
-    /// use moteconnection::transport::serialforwarder::SFTransport;
     ///
     /// let mut dispatcher = AMDispatcherBuilder::new(0x1234);
     /// let mut receiver = AMReceiver::new();
     /// dispatcher.register_default_snooper(&mut receiver);
     /// let mut dispatcher = dispatcher.create();
-    /// 
-    /// let builder = ConnectionBuilder::<SFTransport>::with_connection_string(String::from("sf@localhost:9002"))
+    ///
+    /// let builder = ConnectionBuilder::with_connection_string(String::from("sf@localhost:9002"))
     ///     .unwrap()
     ///     .register_dispatcher(&mut dispatcher);
     /// ```
@@ -208,17 +204,17 @@ impl<T: Transport> ConnectionBuilder<T> {
     ///
     /// ```rust
     /// ```
-    pub fn start(self) -> Result<Connection<T>, String> {
+    pub fn start(self) -> Result<Connection, String> {
         Ok(Connection::new(self.transport, self.dispatchers)?)
     }
 
-    fn build_transport(connection_string: &str) -> Result<SFTransport, String> {
+    fn build_transport(connection_string: &str) -> Result<Box<dyn TransportBuilder>, String> {
         let re = Regex::new(r"^(sf|serial)@([^:]+(:\d+)?)$").unwrap();
         if re.is_match(connection_string) {
             let caps = re.captures(connection_string).unwrap();
             match caps.get(1).unwrap().as_str() {
                 "sf" => match SFBuilder::try_from(String::from(caps.get(2).unwrap().as_str())) {
-                    Ok(v) => Ok(v.start()),
+                    Ok(v) => Ok(Box::new(v)),
                     Err(e) => Err(format!(
                         "Error while deconstructing connection string: {}",
                         e
@@ -351,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_from_invalid_string() {
-        let result = ConnectionBuilder::<SFTransport>::with_connection_string(String::from(
+        let result = ConnectionBuilder::with_connection_string(String::from(
             "ser-f@no-valid:80",
         ));
         assert_eq!(result.is_err(), true);
@@ -364,7 +360,7 @@ mod tests {
         let listener = TcpListener::bind(SERVER_ADDR).unwrap();
 
         let connection =
-            ConnectionBuilder::<SFTransport>::with_connection_string(String::from("sf@localhost"))
+            ConnectionBuilder::with_connection_string(String::from("sf@localhost"))
                 .unwrap()
                 .start()
                 .unwrap();
@@ -388,7 +384,7 @@ mod tests {
         let listener = TcpListener::bind(SERVER_ADDR).unwrap();
 
         let mut _connection =
-            ConnectionBuilder::<SFTransport>::with_connection_string(format!("sf@{}", SERVER_ADDR))
+            ConnectionBuilder::with_connection_string(format!("sf@{}", SERVER_ADDR))
                 .unwrap()
                 .start()
                 .unwrap();

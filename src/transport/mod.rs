@@ -23,6 +23,13 @@ pub enum Event {
     Stop,
 }
 
+/// A struct representing a transport implementation.
+pub struct Transport {
+    handle: Option<TransportHandle>,
+    /// The stopper function for the `Trasnport`
+    stopper: Box<dyn FnOnce() -> Result<(), &'static str>>,
+}
+
 /// Provides a handle for the use in `Connection`.
 pub struct TransportHandle {
     /// The sender for the outging channel
@@ -31,11 +38,39 @@ pub struct TransportHandle {
     pub rx: Receiver<Event>,
 }
 
-/// An object responsible for the transportation of moteconnection packets.
-pub trait Transport {
-    /// Stops an already open connection.
-    fn stop(self) -> Result<(), &'static str>;
+/// Provides the ability to create a `Transport` instance.
+pub trait TransportBuilder {
+    /// Starts the transport manager and returns the handle.
+    fn start(&self) -> Transport;
+}
 
-    /// Returns the handle for the transport.
-    fn get_handle(&mut self) -> TransportHandle;
+impl Transport {
+    /// Creates a new Transport.
+    pub fn new(tx: Sender<Event>, rx: Receiver<Event>) -> Transport {
+        Transport::with_stopper(tx, rx, Box::new(|| Ok(())))
+    }
+
+    /// Creates a new `Transport` with a function to be called when stopping.
+    pub fn with_stopper(
+        tx: Sender<Event>,
+        rx: Receiver<Event>,
+        stopper: Box<dyn FnOnce() -> Result<(), &'static str>>,
+    ) -> Transport {
+        Transport {
+            handle: Some(TransportHandle { tx, rx }),
+            stopper,
+        }
+    }
+
+    /// Returns the `TransportHandle`
+    ///
+    /// TODO(Kaarel): panic warning etc.
+    pub fn get_handle(&mut self) -> TransportHandle {
+        self.handle.take().unwrap()
+    }
+
+    /// Stops the transport.
+    pub fn stop(self) -> Result<(), &'static str> {
+        (self.stopper)()
+    }
 }

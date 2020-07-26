@@ -6,7 +6,6 @@ use std::time::Duration;
 use moteconnection::dispatcher::am::{AMDispatcherBuilder, AMReceiver, Message};
 use moteconnection::dispatcher::raw::RawDispatcher;
 use moteconnection::dispatcher::Event as DEvent;
-use moteconnection::transport::serialforwarder::SFTransport;
 use moteconnection::transport::Event;
 use moteconnection::ConnectionBuilder;
 
@@ -19,7 +18,7 @@ mod harness {
     use std::sync::mpsc;
     use std::sync::mpsc::{Receiver, Sender};
 
-    use moteconnection::transport::{Event, Transport, TransportHandle};
+    use moteconnection::transport::{Event, Transport, TransportBuilder, TransportHandle};
     use moteconnection::Bytes;
 
     pub struct TestServer {
@@ -86,14 +85,10 @@ mod harness {
         }
     }
 
-    impl Transport for TestTransport {
-        fn stop(self) -> Result<(), &'static str> {
-            Ok(())
-        }
-
-        fn get_handle(&mut self) -> TransportHandle {
-            let mut guard = self.handle.borrow_mut();
-            guard.take().unwrap()
+    impl TransportBuilder for TestTransport {
+        fn start(&self) -> Transport {
+            let TransportHandle { tx, rx } = self.handle.borrow_mut().take().unwrap();
+            Transport::new(tx, rx)
         }
     }
 }
@@ -104,7 +99,7 @@ fn test_tcp_connection() {
     let mut server = harness::TestServer::new("localhost:9200");
 
     let mut dispatcher = RawDispatcher::new(0x01);
-    let connection = ConnectionBuilder::<SFTransport>::with_connection_string(connection_string)
+    let connection = ConnectionBuilder::with_connection_string(connection_string)
         .unwrap()
         .register_dispatcher(&mut dispatcher)
         .start()
@@ -134,7 +129,7 @@ fn test_raw_packet_connection() {
     let transport = harness::TestTransport::new();
 
     let mut dispatcher = RawDispatcher::new(0x01);
-    let connection = ConnectionBuilder::with_transport(transport.clone())
+    let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
         .start()
         .unwrap();
@@ -168,7 +163,7 @@ fn test_am_default_receiver_connection() {
     dispatcher.register_default_receiver(&mut receiver);
     let mut dispatcher = dispatcher.create();
 
-    let connection = ConnectionBuilder::with_transport(transport.clone())
+    let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
         .start()
         .unwrap();
@@ -210,7 +205,7 @@ fn test_am_receiver_connection() {
     dispatcher.register_receiver(&mut receiver, 0x02);
     let mut dispatcher = dispatcher.create();
 
-    let connection = ConnectionBuilder::with_transport(transport.clone())
+    let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
         .start()
         .unwrap();
@@ -252,7 +247,7 @@ fn test_am_default_snooper_connection() {
     dispatcher.register_default_snooper(&mut receiver);
     let mut dispatcher = dispatcher.create();
 
-    let connection = ConnectionBuilder::with_transport(transport.clone())
+    let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
         .start()
         .unwrap();
@@ -294,7 +289,7 @@ fn test_am_snooper_connection() {
     dispatcher.register_snooper(&mut receiver, 0x02);
     let mut dispatcher = dispatcher.create();
 
-    let connection = ConnectionBuilder::with_transport(transport.clone())
+    let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
         .start()
         .unwrap();
