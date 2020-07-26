@@ -113,7 +113,9 @@ impl SFBuilder {
                         tcp_tx.send(Event::Disconnected).unwrap();
                         read_handle.join().unwrap();
 
-                        thread::sleep(Duration::from_secs(30));
+                        if !stop {
+                            thread::sleep(Duration::from_secs(30));
+                        }
                     }
                 }
             })
