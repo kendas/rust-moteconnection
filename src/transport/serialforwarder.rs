@@ -8,7 +8,9 @@ use std::io::{Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
+use std::thread;
 use std::thread::{Builder, JoinHandle};
+use std::time::Duration;
 
 use super::{Event, Transport, TransportHandle};
 use crate::Bytes;
@@ -110,6 +112,8 @@ impl SFBuilder {
                         stream.shutdown(Shutdown::Both).unwrap();
                         tcp_tx.send(Event::Disconnected).unwrap();
                         read_handle.join().unwrap();
+
+                        thread::sleep(Duration::from_secs(30));
                     }
                 }
             })
