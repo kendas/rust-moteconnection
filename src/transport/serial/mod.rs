@@ -5,3 +5,4 @@
 //! 
 //! [1]: https://github.com/proactivity-lab/docs/wiki/Serial-protocol
 // TODO(Kaarel)
+pub mod hdlc;
