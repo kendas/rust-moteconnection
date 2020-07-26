@@ -63,7 +63,7 @@ impl Connection {
     ///
     /// TODO(Kaarel): Usage
     pub fn new(
-        mut transport_builder: Box<dyn TransportBuilder>,
+        transport_builder: Box<dyn TransportBuilder>,
         dispatchers: HashMap<u8, DispatcherHandle>,
     ) -> Result<Connection, String> {
         let (control_tx, control_rx) = mpsc::channel();

@@ -30,7 +30,7 @@
 //! [1]: https://github.com/proactivity-lab/docs/wiki/Serial-protocol
 use std::convert::{TryFrom, TryInto};
 
-use super::Dispatcher;
+use super::{Dispatcher, Event};
 
 mod dispatcher;
 mod receiver;
@@ -63,7 +63,7 @@ const MINIMUM_LENGTH: u8 = 7;
 /// assert_eq!(message.id, 0);
 /// assert_eq!(message.payload, Vec::new());
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Message {
     /// Destination
     pub dest: u16,
@@ -176,6 +176,12 @@ impl Into<Vec<u8>> for Message {
                 .chain(self.metadata.iter()),
         );
         result
+    }
+}
+
+impl Into<Event> for Message {
+    fn into(self) -> Event {
+        Event::Data(self.into())
     }
 }
 

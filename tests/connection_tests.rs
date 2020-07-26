@@ -321,3 +321,60 @@ fn test_am_snooper_connection() {
         }
     };
 }
+
+#[test]
+fn test_am_connection_send() {
+    let transport = harness::TestTransport::new();
+
+    let mut dispatcher = AMDispatcherBuilder::new(0x1234);
+    let mut receiver = AMReceiver::new();
+    dispatcher.register_snooper(&mut receiver, 0x02);
+    let mut dispatcher = dispatcher.create();
+
+    let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
+        .register_dispatcher(&mut dispatcher)
+        .start()
+        .unwrap();
+
+    let input = Message {
+        dest: 0x1235,
+        src: 0x0001,
+        length: 0x01,
+        group: 0x22,
+        id: 0x02,
+        payload: vec![0xff],
+        metadata: vec![],
+    };
+
+    dispatcher.tx.send(input.clone().into()).unwrap();
+
+    match transport
+        .internal_rx
+        .recv_timeout(Duration::from_millis(1000))
+    {
+        Ok(result) => match result {
+            Event::Data(data) => {
+                let dispatch_byte = data[0];
+                let output: Message = data[1..].to_vec().try_into().unwrap();
+                connection.stop().unwrap();
+
+                assert_eq!(dispatch_byte, 0x00);
+                assert_eq!(output.dest, 0x1235);
+                assert_eq!(output.src, 0x0001);
+                assert_eq!(output.length, 0x01);
+                assert_eq!(output.group, 0x22);
+                assert_eq!(output.id, 0x02);
+                assert_eq!(output.payload, vec![0xff]);
+                assert_eq!(output.metadata, vec![]);
+            }
+            e => {
+                connection.stop().unwrap();
+                panic!(format!("Unexpected message type: {:?}", e));
+            }
+        },
+        Err(e) => {
+            connection.stop().unwrap();
+            panic!(format!("Unexpected error on recv: {:?}", e));
+        }
+    };
+}
