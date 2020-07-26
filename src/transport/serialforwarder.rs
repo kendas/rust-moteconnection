@@ -18,8 +18,6 @@ use crate::Bytes;
 /// A builder object for `SFTransport`
 pub struct SFBuilder {
     addr: SocketAddr,
-    connect_callback: Option<Box<dyn Fn()>>,
-    disconnect_callback: Option<Box<dyn Fn()>>,
 }
 
 /// Manages the transportation of moteconnection packets over the TCP
@@ -45,25 +43,7 @@ impl SFBuilder {
     ///
     /// TODO(Kaarel): Usage
     pub fn new(addr: SocketAddr) -> Self {
-        SFBuilder {
-            addr,
-            connect_callback: None,
-            disconnect_callback: None,
-        }
-    }
-
-    /// Registers a callback function for signaling a successful connection.
-    ///
-    /// TODO(Kaarel): Usage
-    pub fn on_connect(&mut self, callback: Box<dyn Fn()>) {
-        self.connect_callback = Some(callback);
-    }
-
-    /// Registers a callback function for signaling a disconnect event.
-    ///
-    /// TODO(Kaarel): Usage
-    pub fn on_disconnect(&mut self, callback: Box<dyn Fn()>) {
-        self.disconnect_callback = Some(callback);
+        SFBuilder { addr }
     }
 
     /// Creates a new `Transport` object that uses the SerialForwarder
@@ -148,11 +128,7 @@ impl TryFrom<String> for SFBuilder {
             addr
         };
         match addr.to_socket_addrs()?.next() {
-            Some(addr) => Ok(SFBuilder {
-                addr,
-                connect_callback: None,
-                disconnect_callback: None,
-            }),
+            Some(addr) => Ok(SFBuilder { addr }),
             None => Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Unable to resolve the address",
