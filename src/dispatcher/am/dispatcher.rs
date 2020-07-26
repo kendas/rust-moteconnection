@@ -4,6 +4,8 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::Builder;
 
+use uuid::Uuid;
+
 use super::receiver::{AMReceiver, AMReceiverHandle};
 use super::{Dispatcher, Message};
 use crate::dispatcher::{DispatcherHandle, Event};
@@ -23,11 +25,17 @@ pub struct AMDispatcherBuilder {
     addr: u16,
     group: u8,
 
-    receivers: HashMap<u8, AMReceiverHandle>,
-    default_receiver: Option<AMReceiverHandle>,
+    receivers: ReceiverRegistry,
+}
 
-    snoopers: HashMap<u8, AMReceiverHandle>,
-    default_snooper: Option<AMReceiverHandle>,
+struct ReceiverRegistry {
+    receivers: HashMap<u8, Uuid>,
+    default_receiver: Option<Uuid>,
+
+    snoopers: HashMap<u8, Uuid>,
+    default_snooper: Option<Uuid>,
+
+    handles: HashMap<Uuid, AMReceiverHandle>,
 }
 
 struct ConnectionWorker {
@@ -36,11 +44,7 @@ struct ConnectionWorker {
     addr: u16,
     group: u8,
 
-    receivers: HashMap<u8, AMReceiverHandle>,
-    default_receiver: Option<AMReceiverHandle>,
-
-    snoopers: HashMap<u8, AMReceiverHandle>,
-    default_snooper: Option<AMReceiverHandle>,
+    receivers: ReceiverRegistry,
 }
 
 impl AMDispatcherBuilder {
@@ -54,24 +58,13 @@ impl AMDispatcherBuilder {
         AMDispatcherBuilder {
             addr,
             group,
-            receivers: HashMap::new(),
-            default_receiver: None,
-            snoopers: HashMap::new(),
-            default_snooper: None,
+            receivers: ReceiverRegistry::default(),
         }
     }
 
     /// Creates the AMDispatcher.
     pub fn create(self) -> AMDispatcher {
-        AMDispatcher::new(
-            0x00,
-            self.addr,
-            self.group,
-            self.receivers,
-            self.default_receiver,
-            self.snoopers,
-            self.default_snooper,
-        )
+        AMDispatcher::new(0x00, self.addr, self.group, self.receivers)
     }
 
     /// Registers a receiver as the receiver for a specific AM ID.
@@ -79,7 +72,7 @@ impl AMDispatcherBuilder {
     /// Receivers handle all packets that are intended for the
     /// dispatcher address or the broadcast address.
     pub fn register_receiver(&mut self, receiver: &mut AMReceiver, id: u8) -> &AMDispatcherBuilder {
-        self.receivers.insert(id, receiver.get_handle());
+        self.receivers.register_receiver(receiver, id);
         self
     }
 
@@ -91,7 +84,7 @@ impl AMDispatcherBuilder {
     /// The default receiver handles all packets that have not been handled
     /// by another receiver.
     pub fn register_default_receiver(&mut self, receiver: &mut AMReceiver) -> &AMDispatcherBuilder {
-        self.default_receiver = Some(receiver.get_handle());
+        self.receivers.register_default_receiver(receiver);
         self
     }
 
@@ -100,7 +93,7 @@ impl AMDispatcherBuilder {
     /// Snoopers handle all packets that are not intended for the
     /// dispatcher address or the broadcast address.
     pub fn register_snooper(&mut self, receiver: &mut AMReceiver, id: u8) -> &AMDispatcherBuilder {
-        self.snoopers.insert(id, receiver.get_handle());
+        self.receivers.register_snooper(receiver, id);
         self
     }
 
@@ -112,21 +105,13 @@ impl AMDispatcherBuilder {
     /// The default snooper handles all packets that have not been handled
     /// by another snooper.
     pub fn register_default_snooper(&mut self, receiver: &mut AMReceiver) -> &AMDispatcherBuilder {
-        self.default_snooper = Some(receiver.get_handle());
+        self.receivers.register_default_snooper(receiver);
         self
     }
 }
 
 impl AMDispatcher {
-    fn new(
-        dispatch_byte: u8,
-        addr: u16,
-        group: u8,
-        receivers: HashMap<u8, AMReceiverHandle>,
-        default_receiver: Option<AMReceiverHandle>,
-        snoopers: HashMap<u8, AMReceiverHandle>,
-        default_snooper: Option<AMReceiverHandle>,
-    ) -> AMDispatcher {
+    fn new(dispatch_byte: u8, addr: u16, group: u8, receivers: ReceiverRegistry) -> AMDispatcher {
         let (tx, connection_rx) = mpsc::channel();
         let (connection_tx, rx) = mpsc::channel();
 
@@ -138,9 +123,6 @@ impl AMDispatcher {
                     addr,
                     group,
                     receivers,
-                    default_receiver,
-                    snoopers,
-                    default_snooper,
                 }
                 .start();
             })
@@ -178,6 +160,65 @@ impl Dispatcher for AMDispatcher {
     }
 }
 
+impl ReceiverRegistry {
+    fn register_receiver(&mut self, receiver: &mut AMReceiver, id: u8) {
+        self.handles
+            .entry(receiver.id())
+            .or_insert_with(|| receiver.get_handle());
+        self.receivers.insert(id, receiver.id());
+    }
+
+    fn register_default_receiver(&mut self, receiver: &mut AMReceiver) {
+        self.handles
+            .entry(receiver.id())
+            .or_insert_with(|| receiver.get_handle());
+        self.default_receiver = Some(receiver.id());
+    }
+
+    fn register_snooper(&mut self, receiver: &mut AMReceiver, id: u8) {
+        self.handles
+            .entry(receiver.id())
+            .or_insert_with(|| receiver.get_handle());
+        self.snoopers.insert(id, receiver.id());
+    }
+
+    fn register_default_snooper(&mut self, receiver: &mut AMReceiver) {
+        self.handles
+            .entry(receiver.id())
+            .or_insert_with(|| receiver.get_handle());
+        self.default_snooper = Some(receiver.id());
+    }
+
+    fn select_receiver(&self, addr: u16, dest: u16, am_id: u8) -> Option<&AMReceiverHandle> {
+        let id = if [0xFFFF, addr].contains(&dest) {
+            self.receivers
+                .get(&am_id)
+                .or_else(|| self.default_receiver.as_ref())
+        } else {
+            self.snoopers
+                .get(&am_id)
+                .or_else(|| self.default_snooper.as_ref())
+        };
+        if let Some(id) = id {
+            self.handles.get(&id)
+        } else {
+            None
+        }
+    }
+}
+
+impl Default for ReceiverRegistry {
+    fn default() -> ReceiverRegistry {
+        ReceiverRegistry {
+            receivers: HashMap::default(),
+            default_receiver: None,
+            snoopers: HashMap::default(),
+            default_snooper: None,
+            handles: HashMap::default(),
+        }
+    }
+}
+
 impl ConnectionWorker {
     fn start(self) {
         while let Ok(v) = self.rx.recv() {
@@ -200,142 +241,88 @@ impl ConnectionWorker {
 
     fn handle_message(&self, message: Message) {
         if message.group == self.group {
-            if let Some(receiver) = self.select_receiver(message.dest, message.id) {
+            if let Some(receiver) =
+                self.receivers
+                    .select_receiver(self.addr, message.dest, message.id)
+            {
                 receiver.tx.send(message).unwrap();
             }
-        }
-    }
-
-    fn select_receiver(&self, dest: u16, am_id: u8) -> Option<&AMReceiverHandle> {
-        if [0xFFFF, self.addr].contains(&dest) {
-            self.receivers
-                .get(&am_id)
-                .or_else(|| self.default_receiver.as_ref())
-        } else {
-            self.snoopers
-                .get(&am_id)
-                .or_else(|| self.default_snooper.as_ref())
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::iter::FromIterator;
-
     use super::*;
 
     #[test]
-    fn test_select_receiver_valid_addr_exact_receiver() {
-        let (_, rx) = mpsc::channel();
+    fn test_insert_multi_use_receiver() {
         let mut receiver = AMReceiver::new();
-        let handle = receiver.get_handle();
-        let worker = ConnectionWorker {
-            rx,
-            addr: 0x0010,
-            group: 0x02,
-            receivers: HashMap::from_iter(vec![(0x01, handle)].into_iter()),
-            default_receiver: None,
-            snoopers: HashMap::new(),
-            default_snooper: None,
-        };
+        let mut registry = ReceiverRegistry::default();
+        registry.register_default_receiver(&mut receiver);
+        registry.register_default_snooper(&mut receiver);
 
-        let selected = worker.select_receiver(0x0010, 0x01);
+        let selected = registry.select_receiver(0x0010, 0x0010, 0x01);
+        assert_eq!(selected.is_some(), true);
+    }
+
+    #[test]
+    fn test_select_receiver_valid_addr_exact_receiver() {
+        let mut receiver = AMReceiver::new();
+        let mut registry = ReceiverRegistry::default();
+        registry.register_receiver(&mut receiver, 0x01);
+
+        let selected = registry.select_receiver(0x0010, 0x0010, 0x01);
         assert_eq!(selected.is_some(), true);
     }
 
     #[test]
     fn test_select_receiver_valid_addr_default_receiver() {
-        let (_, rx) = mpsc::channel();
         let mut receiver = AMReceiver::new();
-        let handle = receiver.get_handle();
-        let worker = ConnectionWorker {
-            rx,
-            addr: 0x0010,
-            group: 0x02,
-            receivers: HashMap::new(),
-            default_receiver: Some(handle),
-            snoopers: HashMap::new(),
-            default_snooper: None,
-        };
+        let mut registry = ReceiverRegistry::default();
+        registry.register_default_receiver(&mut receiver);
 
-        let selected = worker.select_receiver(0x0010, 0x01);
+        let selected = registry.select_receiver(0x0010, 0x0010, 0x01);
         assert_eq!(selected.is_some(), true);
     }
 
     #[test]
     fn test_select_receiver_valid_addr_no_receiver() {
-        let (_, rx) = mpsc::channel();
         let mut receiver = AMReceiver::new();
-        let handle = receiver.get_handle();
-        let worker = ConnectionWorker {
-            rx,
-            addr: 0x0010,
-            group: 0x02,
-            receivers: HashMap::from_iter(vec![(0x01, handle)].into_iter()),
-            default_receiver: None,
-            snoopers: HashMap::new(),
-            default_snooper: None,
-        };
+        let mut registry = ReceiverRegistry::default();
+        registry.register_receiver(&mut receiver, 0x01);
 
-        let selected = worker.select_receiver(0x0010, 0x02);
+        let selected = registry.select_receiver(0x0010, 0x0010, 0x02);
         assert_eq!(selected.is_none(), true);
     }
 
     #[test]
     fn test_select_receiver_invalid_addr_exact_snooper() {
-        let (_, rx) = mpsc::channel();
         let mut receiver = AMReceiver::new();
-        let handle = receiver.get_handle();
-        let worker = ConnectionWorker {
-            rx,
-            addr: 0x0011,
-            group: 0x02,
-            receivers: HashMap::new(),
-            default_receiver: None,
-            snoopers: HashMap::from_iter(vec![(0x01, handle)].into_iter()),
-            default_snooper: None,
-        };
+        let mut registry = ReceiverRegistry::default();
+        registry.register_snooper(&mut receiver, 0x01);
 
-        let selected = worker.select_receiver(0x0010, 0x01);
+        let selected = registry.select_receiver(0x0011, 0x0010, 0x01);
         assert_eq!(selected.is_some(), true);
     }
 
     #[test]
     fn test_select_receiver_invalid_addr_default_snooper() {
-        let (_, rx) = mpsc::channel();
         let mut receiver = AMReceiver::new();
-        let handle = receiver.get_handle();
-        let worker = ConnectionWorker {
-            rx,
-            addr: 0x0011,
-            group: 0x02,
-            receivers: HashMap::new(),
-            default_receiver: None,
-            snoopers: HashMap::new(),
-            default_snooper: Some(handle),
-        };
+        let mut registry = ReceiverRegistry::default();
+        registry.register_default_snooper(&mut receiver);
 
-        let selected = worker.select_receiver(0x0010, 0x01);
+        let selected = registry.select_receiver(0x0011, 0x0010, 0x01);
         assert_eq!(selected.is_some(), true);
     }
 
     #[test]
     fn test_select_receiver_invalid_addr_no_snooper() {
-        let (_, rx) = mpsc::channel();
         let mut receiver = AMReceiver::new();
-        let handle = receiver.get_handle();
-        let worker = ConnectionWorker {
-            rx,
-            addr: 0x0011,
-            group: 0x02,
-            receivers: HashMap::from_iter(vec![(0x01, handle)].into_iter()),
-            default_receiver: None,
-            snoopers: HashMap::new(),
-            default_snooper: None,
-        };
+        let mut registry = ReceiverRegistry::default();
+        registry.register_snooper(&mut receiver, 0x01);
 
-        let selected = worker.select_receiver(0x0010, 0x02);
+        let selected = registry.select_receiver(0x0011, 0x0010, 0x02);
         assert_eq!(selected.is_none(), true);
     }
 }
