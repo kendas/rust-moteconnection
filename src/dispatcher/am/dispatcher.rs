@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn test_insert_multi_use_receiver() {
         let mut receiver = AMReceiver::new();
-        let mut registry = Default::default();
+        let mut registry: ReceiverRegistry = Default::default();
         registry.register_default_receiver(&mut receiver);
         registry.register_default_snooper(&mut receiver);
 
@@ -269,7 +269,7 @@ mod tests {
     #[test]
     fn test_select_receiver_valid_addr_exact_receiver() {
         let mut receiver = AMReceiver::new();
-        let mut registry = Default::default();
+        let mut registry: ReceiverRegistry = Default::default();
         registry.register_receiver(&mut receiver, 0x01);
 
         let selected = registry.select_receiver(0x0010, 0x0010, 0x01);
@@ -279,7 +279,7 @@ mod tests {
     #[test]
     fn test_select_receiver_valid_addr_default_receiver() {
         let mut receiver = AMReceiver::new();
-        let mut registry = Default::default();
+        let mut registry: ReceiverRegistry = Default::default();
         registry.register_default_receiver(&mut receiver);
 
         let selected = registry.select_receiver(0x0010, 0x0010, 0x01);
@@ -289,7 +289,7 @@ mod tests {
     #[test]
     fn test_select_receiver_valid_addr_no_receiver() {
         let mut receiver = AMReceiver::new();
-        let mut registry = Default::default();
+        let mut registry: ReceiverRegistry = Default::default();
         registry.register_receiver(&mut receiver, 0x01);
 
         let selected = registry.select_receiver(0x0010, 0x0010, 0x02);
@@ -299,7 +299,7 @@ mod tests {
     #[test]
     fn test_select_receiver_invalid_addr_exact_snooper() {
         let mut receiver = AMReceiver::new();
-        let mut registry = Default::default();
+        let mut registry: ReceiverRegistry = Default::default();
         registry.register_snooper(&mut receiver, 0x01);
 
         let selected = registry.select_receiver(0x0011, 0x0010, 0x01);
@@ -309,7 +309,7 @@ mod tests {
     #[test]
     fn test_select_receiver_invalid_addr_default_snooper() {
         let mut receiver = AMReceiver::new();
-        let mut registry = Default::default();
+        let mut registry: ReceiverRegistry = Default::default();
         registry.register_default_snooper(&mut receiver);
 
         let selected = registry.select_receiver(0x0011, 0x0010, 0x01);
@@ -319,7 +319,7 @@ mod tests {
     #[test]
     fn test_select_receiver_invalid_addr_no_snooper() {
         let mut receiver = AMReceiver::new();
-        let mut registry = Default::default();
+        let mut registry: ReceiverRegistry = Default::default();
         registry.register_snooper(&mut receiver, 0x01);
 
         let selected = registry.select_receiver(0x0011, 0x0010, 0x02);
