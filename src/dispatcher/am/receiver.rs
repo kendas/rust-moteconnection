@@ -20,7 +20,7 @@ pub struct AMReceiver {
 impl AMReceiver {
     /// Creates a new instance of an AMReceiver.
     pub fn new() -> AMReceiver {
-        AMReceiver::default()
+        Default::default()
     }
 
     /// Returns the unique ID of this receiver.

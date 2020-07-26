@@ -20,11 +20,9 @@ pub struct HdlcCodec {
 impl HdlcCodec {
     /// Creates a new `HdlcCodec` instance.
     pub fn new() -> HdlcCodec {
-        HdlcCodec::default()
+        Default::default()
     }
 
-    // vec![0x7E, 0x44, 0x00, 0x0E, 0x7D, 0x5D, 0x7D],
-    // vec![0x5D, 0x7D, 0x5D, 0xED, 0xB9, 0x7E],
     /// Attempts to decode a HDLC-encoded stream.
     ///
     /// Supports decoding a HDLC-encoded stream in chunks.
