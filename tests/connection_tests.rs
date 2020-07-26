@@ -119,7 +119,7 @@ fn test_tcp_connection() {
 
     match dispatcher
         .rx
-        .recv_timeout(Duration::from_millis(10))
+        .recv_timeout(Duration::from_millis(1000))
         .unwrap()
     {
         DEvent::Data(output) => assert_eq!(output[..], input[1..]),
@@ -146,7 +146,7 @@ fn test_raw_packet_connection() {
         .send(Event::Data(input.clone()))
         .unwrap();
 
-    match dispatcher.rx.recv_timeout(Duration::from_millis(10)) {
+    match dispatcher.rx.recv_timeout(Duration::from_millis(1000)) {
         Ok(value) => match value {
             DEvent::Data(output) => assert_eq!(output[..], input[1..]),
             e => panic!(format!("Expected Event::Data, received {:?}", e)),
@@ -180,7 +180,7 @@ fn test_am_default_receiver_connection() {
         .send(Event::Data(input.clone()))
         .unwrap();
 
-    match receiver.rx.recv_timeout(Duration::from_millis(10)) {
+    match receiver.rx.recv_timeout(Duration::from_millis(1000)) {
         Ok(result) => {
             let output = Message::try_from(result).unwrap();
 
@@ -222,7 +222,7 @@ fn test_am_receiver_connection() {
         .send(Event::Data(input.clone()))
         .unwrap();
 
-    match receiver.rx.recv_timeout(Duration::from_millis(10)) {
+    match receiver.rx.recv_timeout(Duration::from_millis(1000)) {
         Ok(result) => {
             let output: Message = result.try_into().unwrap();
 
@@ -264,7 +264,7 @@ fn test_am_default_snooper_connection() {
         .send(Event::Data(input.clone()))
         .unwrap();
 
-    match receiver.rx.recv_timeout(Duration::from_millis(10)) {
+    match receiver.rx.recv_timeout(Duration::from_millis(1000)) {
         Ok(result) => {
             let output: Message = result.try_into().unwrap();
 
@@ -306,7 +306,7 @@ fn test_am_snooper_connection() {
         .send(Event::Data(input.clone()))
         .unwrap();
 
-    match receiver.rx.recv_timeout(Duration::from_millis(10)) {
+    match receiver.rx.recv_timeout(Duration::from_millis(1000)) {
         Ok(result) => {
             let output: Message = result.try_into().unwrap();
 
