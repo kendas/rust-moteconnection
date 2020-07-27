@@ -5,7 +5,7 @@
 /// any fancy argument parsing or anything.
 use std::env;
 
-use chrono::Utc;
+use chrono::{SecondsFormat, Utc};
 
 use moteconnection::dispatcher::am::{AMDispatcherBuilder, AMReceiver};
 use moteconnection::ConnectionBuilder;
@@ -43,7 +43,7 @@ fn main() {
             };
             println!(
                 "{} {{{:02X}}}{:04X}->{:04X}[{:02X}]{:>3}: {} {}",
-                Utc::now().to_rfc3339(),
+                Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true),
                 message.group,
                 message.src,
                 message.dest,
