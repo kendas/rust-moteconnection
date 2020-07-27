@@ -23,7 +23,7 @@ pub struct AMDispatcher {
 /// A builder for the AMDispatcher struct
 pub struct AMDispatcherBuilder {
     addr: u16,
-    group: u8,
+    group: Option<u8>,
 
     receivers: ReceiverRegistry,
 }
@@ -42,7 +42,7 @@ struct ConnectionWorker {
     rx: Receiver<Event>,
 
     addr: u16,
-    group: u8,
+    group: Option<u8>,
 
     receivers: ReceiverRegistry,
 }
@@ -50,16 +50,22 @@ struct ConnectionWorker {
 impl AMDispatcherBuilder {
     /// Creates a new `AMDispatcher` that listens on the default 0x22 group.
     pub fn new(addr: u16) -> AMDispatcherBuilder {
-        AMDispatcherBuilder::with_group(addr, 0x22)
+        AMDispatcherBuilder::with_group(addr, Some(0x22))
     }
 
     /// Creates a new `AMDispatcher` that listens on the group provided.
-    pub fn with_group(addr: u16, group: u8) -> AMDispatcherBuilder {
+    pub fn with_group(addr: u16, group: Option<u8>) -> AMDispatcherBuilder {
         AMDispatcherBuilder {
             addr,
             group,
             receivers: Default::default(),
         }
+    }
+
+    /// Sets the group that is accepted for the packets.
+    pub fn group(&mut self, group: Option<u8>) -> &AMDispatcherBuilder {
+        self.group = group;
+        self
     }
 
     /// Creates the AMDispatcher.
@@ -111,7 +117,12 @@ impl AMDispatcherBuilder {
 }
 
 impl AMDispatcher {
-    fn new(dispatch_byte: u8, addr: u16, group: u8, receivers: ReceiverRegistry) -> AMDispatcher {
+    fn new(
+        dispatch_byte: u8,
+        addr: u16,
+        group: Option<u8>,
+        receivers: ReceiverRegistry,
+    ) -> AMDispatcher {
         let (tx, connection_rx) = mpsc::channel();
         let (connection_tx, rx) = mpsc::channel();
 
@@ -240,7 +251,7 @@ impl ConnectionWorker {
     }
 
     fn handle_message(&self, message: Message) {
-        if message.group == self.group {
+        if self.group.is_none() || Some(message.group) == self.group {
             if let Some(receiver) =
                 self.receivers
                     .select_receiver(self.addr, message.dest, message.id)
