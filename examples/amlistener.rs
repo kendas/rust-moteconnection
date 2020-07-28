@@ -1,17 +1,29 @@
 /// Connects to a serial-frowarder port and prints all incoming messages
 /// to stdout.
-///
-/// Warning: This program is as simple as possible!. It does not do
-/// any fancy argument parsing or anything.
-use std::env;
+use std::net::ToSocketAddrs;
 
 use chrono::{SecondsFormat, Utc};
+use clap::{App, Arg};
+use regex::Regex;
 
 use moteconnection::dispatcher::am::{AMDispatcherBuilder, AMReceiver};
 use moteconnection::ConnectionBuilder;
 
 fn main() {
-    let addr = env::args().skip(1).next().unwrap();
+    let matches = App::new("amlistener")
+        .about(concat!(
+            "Connects to a serial-frowarder or serial port ",
+            "and prints all incoming messages"
+        ))
+        .arg(
+            Arg::with_name("address")
+                .help("The address that is ")
+                .validator(validate_connection_string)
+                .required(true),
+        )
+        .get_matches();
+
+    let addr = matches.value_of("address").unwrap().to_string();
 
     let mut receiver = AMReceiver::new();
     let mut dispatcher = AMDispatcherBuilder::new(0x0000);
@@ -59,5 +71,28 @@ fn main() {
                 metadata,
             )
         }
+    }
+}
+
+fn validate_connection_string(value: String) -> Result<(), String> {
+    let re = Regex::new(r"^(sf|serial)@([^:]+(:\d+)?)$").unwrap();
+    if re.is_match(&value) {
+        let caps = re.captures(&value).unwrap();
+        match caps.get(1).unwrap().as_str() {
+            "sf" => {
+                let mut addr: String = caps.get(2).unwrap().as_str().into();
+                if !addr.contains(":") {
+                    addr = format!("{}:9002", addr);
+                }
+                match addr.to_socket_addrs() {
+                    Err(_) => Err(format!("{} is not a valid network address!", addr)),
+                    _ => Ok(()),
+                }
+            }
+            "serial" => Err(String::from("The serial protocol is not implemented yet!")),
+            protocol => Err(format!("Unknown protocol: {}", protocol)),
+        }
+    } else {
+        Err(format!("Malformed connection string: {}", value))
     }
 }
