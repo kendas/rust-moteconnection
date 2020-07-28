@@ -9,11 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- This CHANGELOG file to hopefully serve as an evolving example of a
-  standardized open source project CHANGELOG.
-- CNAME file to enable GitHub Pages custom domain
-- README now contains answers to common questions about CHANGELOGs
-- Good examples and basic guidelines, including proper date formatting.
-- Counter-examples: "What makes unicorns cry?"
+- Serial-Forwarder protocol support
+- Raw packet dispatcher
+- Active Message dispatcher
+- `amlistener` example application
 
 [Unreleased]: https://github.com/kendas/rust-moteconnection/releases/tag/v0.1.0
