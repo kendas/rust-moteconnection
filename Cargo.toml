@@ -8,6 +8,8 @@ edition = "2018"
 [dependencies]
 regex = "1"
 uuid = { version = "0.8", features = ["v4"] }
+crc = "1.8.1"
+serialport = "3.3.0"
 
 [dev-dependencies]
 chrono = "0.4.13"
