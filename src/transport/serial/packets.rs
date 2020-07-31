@@ -149,8 +149,8 @@ impl TryFrom<Bytes> for Ack {
     }
 }
 
-impl From<AckPacket> for Ack {
-    fn from(value: AckPacket) -> Self {
+impl From<&AckPacket> for Ack {
+    fn from(value: &AckPacket) -> Self {
         Ack::new(value.seq_num)
     }
 }
@@ -295,7 +295,7 @@ mod tests {
         let seq_num = 0x54;
         let ackpacket = AckPacket::new(seq_num, vec![0x01, 0x02]);
 
-        let packet = Ack::from(ackpacket);
+        let packet = Ack::from(&ackpacket);
 
         assert_eq!(packet.protocol, ACK);
         assert_eq!(packet.seq_num, seq_num);
