@@ -149,6 +149,12 @@ impl TryFrom<Bytes> for Ack {
     }
 }
 
+impl From<AckPacket> for Ack {
+    fn from(value: AckPacket) -> Self {
+        Ack::new(value.seq_num)
+    }
+}
+
 impl From<Ack> for Bytes {
     fn from(value: Ack) -> Self {
         let mut result = Vec::with_capacity(4);
@@ -282,6 +288,18 @@ mod tests {
         assert_eq!(packet.protocol, ACK);
         assert_eq!(packet.seq_num, 0x00);
         assert_eq!(packet.checksum, 0x6349);
+    }
+
+    #[test]
+    fn test_ack_from_ackpacket() {
+        let seq_num = 0x54;
+        let ackpacket = AckPacket::new(seq_num, vec![0x01, 0x02]);
+
+        let packet = Ack::from(ackpacket);
+
+        assert_eq!(packet.protocol, ACK);
+        assert_eq!(packet.seq_num, seq_num);
+        assert_eq!(packet.checksum, 0x77e8);
     }
 
     #[test]
