@@ -3,6 +3,11 @@ rust:
   - stable
   - beta
   - nightly
+dist: bionic
+addons:
+  apt:
+    packages:
+    - libudev-dev
 matrix:
   allow_failures:
     - rust: nightly
