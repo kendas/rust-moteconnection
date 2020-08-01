@@ -15,7 +15,7 @@ use std::time::Duration;
 use super::{Event, TransportBuilder, Transport};
 use crate::Bytes;
 
-/// A builder object for `SFTransport`
+/// A builder object for the serial-forwarder `Transport`
 pub struct SFBuilder {
     addr: SocketAddr,
 }

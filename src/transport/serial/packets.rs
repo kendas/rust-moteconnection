@@ -1,10 +1,29 @@
 //! Provides the packet types used in the serial protocol.
 use std::convert::{TryFrom, TryInto};
 
-use crc::crc16;
-
 use super::{ACK, ACKPACKET, NOACKPACKET};
 use crate::Bytes;
+
+/// Calculates the CRC16 of a bytestring.
+pub fn calculate_crc(bytes: &[u8]) -> u16 {
+    let mut crc: u16 = 0;
+
+    // let mut bytes = Vec::from(bytes);
+    // bytes.reverse();
+    // let bytes = bytes;
+
+    for byte in bytes {
+        crc ^= (*byte as u16) << 8;
+        for _ in 0..8 {
+            crc = if (crc & 0x8000).count_ones() > 0 {
+                crc << 1 ^ 0x1021
+            } else {
+                crc << 1
+            }
+        }
+    }
+    crc
+}
 
 /// The acknowledged packet
 pub struct AckPacket {
@@ -45,7 +64,7 @@ impl AckPacket {
         payload.push(ACKPACKET);
         payload.push(seq_num);
         payload.extend(data.clone());
-        let checksum = crc16::checksum_x25(&payload);
+        let checksum = calculate_crc(&payload);
         AckPacket {
             protocol: ACKPACKET,
             seq_num,
@@ -64,7 +83,8 @@ impl TryFrom<Bytes> for AckPacket {
                 let checksum =
                     u16::from_le_bytes(value.split_off(value.len() - 2)[..].try_into().unwrap());
 
-                if crc16::checksum_x25(&value) == checksum {
+                let calculated_checksum = calculate_crc(&value);
+                if checksum == calculated_checksum {
                     let mut protocol = value;
                     let mut seq_num = protocol.split_off(1);
                     let protocol = protocol[0];
@@ -78,7 +98,10 @@ impl TryFrom<Bytes> for AckPacket {
                         checksum,
                     })
                 } else {
-                    Err("Invalid checksum!".into())
+                    Err(format!(
+                        "Invalid checksum! Expected: {:04X}, actual: {:04X}.",
+                        calculated_checksum, checksum
+                    ))
                 }
             } else {
                 Err(format!(
@@ -108,7 +131,7 @@ impl From<AckPacket> for Bytes {
 impl Ack {
     /// Creates a new instance of `Ack`.
     pub fn new(seq_num: u8) -> Ack {
-        let checksum = crc16::checksum_x25(&[ACK, seq_num]);
+        let checksum = calculate_crc(&[ACK, seq_num]);
         Ack {
             protocol: ACK,
             seq_num,
@@ -126,7 +149,7 @@ impl TryFrom<Bytes> for Ack {
                 let checksum =
                     u16::from_le_bytes(value.split_off(value.len() - 2)[..].try_into().unwrap());
 
-                if crc16::checksum_x25(&value) == checksum {
+                if calculate_crc(&value) == checksum {
                     let mut protocol = value;
                     let seq_num = protocol.split_off(1);
                     let protocol = protocol[0];
@@ -138,7 +161,11 @@ impl TryFrom<Bytes> for Ack {
                         checksum,
                     })
                 } else {
-                    Err("Invalid checksum!".into())
+                    Err(format!(
+                        "Invalid checksum! Expected: {:04X}, actual: {:04X}.",
+                        calculate_crc(&value),
+                        checksum
+                    ))
                 }
             } else {
                 Err(format!("Invalid protocol byte {} for Ack!", value.len()))
@@ -173,7 +200,7 @@ impl NoAckPacket {
         let mut payload = Vec::with_capacity(1 + data.len());
         payload.push(NOACKPACKET);
         payload.extend(data.clone());
-        let checksum = crc16::checksum_x25(&payload);
+        let checksum = calculate_crc(&payload);
         NoAckPacket {
             protocol: NOACKPACKET,
             data,
@@ -191,7 +218,7 @@ impl TryFrom<Bytes> for NoAckPacket {
                 let checksum =
                     u16::from_le_bytes(value.split_off(value.len() - 2)[..].try_into().unwrap());
 
-                if crc16::checksum_x25(&value) == checksum {
+                if calculate_crc(&value) == checksum {
                     let mut protocol = value;
                     let data = protocol.split_off(1);
                     let protocol = protocol[0];
@@ -237,25 +264,23 @@ mod tests {
     fn test_ackpacket_new() {
         let seq_num = 0;
         let data = vec![0x00];
-        
         let packet = AckPacket::new(seq_num, data.clone());
 
         assert_eq!(packet.protocol, ACKPACKET);
         assert_eq!(packet.seq_num, seq_num);
         assert_eq!(packet.data, data);
-        assert_eq!(packet.checksum, 0xa3db);
+        assert_eq!(packet.checksum, 0xc16d);
     }
 
     #[test]
     fn test_ackpacket_from_bytes() {
-        let data = vec![ACKPACKET, 0x00, 0x00, 0xdb, 0xa3];
-        
+        let data = vec![ACKPACKET, 0x00, 0x00, 0x6d, 0xc1];
         let packet = AckPacket::try_from(data).unwrap();
 
         assert_eq!(packet.protocol, ACKPACKET);
         assert_eq!(packet.seq_num, 0x00);
         assert_eq!(packet.data, vec![0x00]);
-        assert_eq!(packet.checksum, 0xa3db);
+        assert_eq!(packet.checksum, 0xc16d);
     }
 
     #[test]
@@ -263,7 +288,7 @@ mod tests {
         let seq_num = 0x00;
         let packet = AckPacket::new(seq_num, vec![0x00]);
 
-        let output = vec![ACKPACKET, seq_num, 0x00, 0xdb, 0xa3];
+        let output = vec![ACKPACKET, 0x00, 0x00, 0x6d, 0xc1];
 
         assert_eq!(Bytes::from(packet), output);
     }
@@ -271,23 +296,21 @@ mod tests {
     #[test]
     fn test_ack_new() {
         let seq_num = 0;
-        
         let packet = Ack::new(seq_num);
 
         assert_eq!(packet.protocol, ACK);
         assert_eq!(packet.seq_num, seq_num);
-        assert_eq!(packet.checksum, 0x6349);
+        assert_eq!(packet.checksum, 0x589f);
     }
 
     #[test]
     fn test_ack_from_bytes() {
-        let data = vec![ACK, 0x00, 0x49, 0x63];
-        
+        let data = vec![ACK, 0x00, 0x9f, 0x58];
         let packet = Ack::try_from(data).unwrap();
 
         assert_eq!(packet.protocol, ACK);
         assert_eq!(packet.seq_num, 0x00);
-        assert_eq!(packet.checksum, 0x6349);
+        assert_eq!(packet.checksum, 0x589f);
     }
 
     #[test]
@@ -299,7 +322,7 @@ mod tests {
 
         assert_eq!(packet.protocol, ACK);
         assert_eq!(packet.seq_num, seq_num);
-        assert_eq!(packet.checksum, 0x77e8);
+        assert_eq!(packet.checksum, 0x42ee);
     }
 
     #[test]
@@ -307,7 +330,7 @@ mod tests {
         let seq_num = 0x00;
         let packet = Ack::new(seq_num);
 
-        let output = vec![ACK, seq_num, 0x49, 0x63];
+        let output = vec![ACK, seq_num, 0x9f, 0x58];
 
         assert_eq!(Bytes::from(packet), output);
     }
@@ -315,30 +338,28 @@ mod tests {
     #[test]
     fn test_noackpacket_new() {
         let data = vec![0x00];
-        
         let packet = NoAckPacket::new(data.clone());
 
         assert_eq!(packet.protocol, NOACKPACKET);
         assert_eq!(packet.data, data);
-        assert_eq!(packet.checksum, 0x3799);
+        assert_eq!(packet.checksum, 0xf239);
     }
 
     #[test]
     fn test_noackpacket_from_bytes() {
-        let data = vec![NOACKPACKET, 0x00, 0x99, 0x37];
-        
+        let data = vec![NOACKPACKET, 0x00, 0x39, 0xf2];
         let packet = NoAckPacket::try_from(data).unwrap();
 
         assert_eq!(packet.protocol, NOACKPACKET);
         assert_eq!(packet.data, vec![0x00]);
-        assert_eq!(packet.checksum, 0x3799);
+        assert_eq!(packet.checksum, 0xf239);
     }
 
     #[test]
     fn test_noackpacket_into_bytes() {
         let packet = NoAckPacket::new(vec![0x00]);
 
-        let output = vec![NOACKPACKET, 0x00, 0x99, 0x37];
+        let output = vec![NOACKPACKET, 0x00, 0x39, 0xf2];
 
         assert_eq!(Bytes::from(packet), output);
     }
