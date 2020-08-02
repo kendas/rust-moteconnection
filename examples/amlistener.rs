@@ -5,6 +5,7 @@ use std::net::ToSocketAddrs;
 use chrono::{SecondsFormat, Utc};
 use clap::{App, Arg};
 use regex::Regex;
+use serialport::SerialPortSettings;
 
 use moteconnection::dispatcher::am::{AMDispatcherBuilder, AMReceiver};
 use moteconnection::ConnectionBuilder;
@@ -89,7 +90,31 @@ fn validate_connection_string(value: String) -> Result<(), String> {
                     _ => Ok(()),
                 }
             }
-            "serial" => Err(String::from("The serial protocol is not implemented yet!")),
+            "serial" => {
+                let name = caps.get(2).unwrap().as_str();
+                let re = Regex::new(r"^([^:]+)(:\d+)?$").unwrap();
+                if re.is_match(&name) {
+                    let caps = re.captures(&name).unwrap();
+                    let name = caps.get(1).unwrap().as_str();
+                    let mut settings = SerialPortSettings::default();
+                    settings.baud_rate = match caps.get(2) {
+                        Some(v) => match String::from(v.as_str()).parse::<u32>() {
+                            Ok(b) => b,
+                            Err(_) => {
+                                return Err(format!("Invalid baud rate {}!", v.as_str()));
+                            }
+                        },
+                        None => 115200,
+                    };
+                    let ports = serialport::available_ports().unwrap();
+                    for port in ports {
+                        if port.port_name == name {
+                            return Ok(());
+                        }
+                    }
+                }
+                Err(format!("The serial port {} was not found!", name))
+            }
             protocol => Err(format!("Unknown protocol: {}", protocol)),
         }
     } else {

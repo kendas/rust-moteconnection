@@ -570,6 +570,59 @@ mod tests {
     }
 
     #[test]
+    fn test_ackpacket_receive() {
+        let input = vec![
+            0x7E, 0x44, 0x00, 0x0E, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A,
+            0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x3B, 0x8B, 0x7E,
+        ];
+        let output = vec![
+            0x0E, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D,
+            0x0E, 0x0F,
+        ];
+        let ack = Bytes::from(Ack::new(0x00));
+        let (tx, worker_rx) = mpsc::channel();
+        let (loopback_tx, sender_rx) = mpsc::channel();
+        let (stopper_tx, stopper_rx) = mpsc::channel();
+
+        let port = TestSerialPort::new();
+        {
+            let mut reads = port.reads.lock().unwrap();
+            reads.push(input);
+        }
+
+        let mut worker = SerialWorker::new(
+            port,
+            tx,
+            loopback_tx,
+            stopper_rx,
+            Arc::default(),
+        );
+
+        let handle = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(100));
+            stopper_tx.send(()).unwrap();
+        });
+        worker.start();
+        handle.join().unwrap();
+
+        match worker_rx
+            .recv_timeout(Duration::from_millis(100))
+            .unwrap()
+        {
+            Event::Data(result) => assert_eq!(result, output),
+            other => panic!("Expected Event::Data, got {:?}", other),
+        }
+
+        match sender_rx
+            .recv_timeout(Duration::from_millis(100))
+            .unwrap()
+        {
+            Event::Data(result) => assert_eq!(result, ack),
+            other => panic!("Expected Event::Data, got {:?}", other),
+        }
+    }
+
+    #[test]
     fn test_ackpacket_handling() {
         let input = vec![
             0x44, 0x00, 0x0E, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
