@@ -8,10 +8,6 @@ use crate::Bytes;
 pub fn calculate_crc(bytes: &[u8]) -> u16 {
     let mut crc: u16 = 0;
 
-    // let mut bytes = Vec::from(bytes);
-    // bytes.reverse();
-    // let bytes = bytes;
-
     for byte in bytes {
         crc ^= (*byte as u16) << 8;
         for _ in 0..8 {

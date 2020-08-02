@@ -85,9 +85,11 @@ impl TransportBuilder for SerialBuilder {
                 let mut stop = false;
                 let timeout = Duration::from_millis(100);
                 while !stop {
+                    log::info!("Connecting to {}", name);
                     if let Ok(mut port) = serialport::open_with_settings(&name, &settings) {
                         port.set_timeout(timeout).unwrap();
                         let (read_stop_tx, read_stop_rx) = mpsc::channel();
+                        log::info!("Connected.");
                         tx.send(Event::Connected).unwrap();
 
                         let waiting_for_ack: Arc<Mutex<HashMap<u8, (u8, Bytes)>>> = Arc::default();
@@ -119,6 +121,7 @@ impl TransportBuilder for SerialBuilder {
 
                         read_stop_tx.send(()).unwrap();
                         tx.send(Event::Disconnected).unwrap();
+                        log::info!("Disconnected.");
                         read_handle.join().unwrap();
                     }
 
@@ -211,8 +214,8 @@ impl SerialWorker {
                 ACK => self.handle_ack(data),
                 NOACKPACKET => self.handle_no_ack_packet(data),
                 other => {
-                    // TODO(Kaarel): log message?
-                    panic!(format!("Unknown packet type {:02X}!", other));
+                    log::debug!("Unknown packet type {:02X}!", other);
+                    panic!("Unknown packet type {:02X}!", other);
                 }
             };
         }
@@ -240,16 +243,15 @@ impl SerialWorker {
                     self.seq_num = packet.seq_num;
                     self.tx.send(Event::Data(packet.data)).unwrap();
                 } else {
-                    // TODO(Kaarel): log message?
-                    panic!(format!(
-                        "sequence number fault! Recored: {}, incoming: {}",
-                        self.seq_num, packet.seq_num
-                    ));
+                    log::debug!(
+                        "Sequence number fault! Recored: {}, incoming: {}",
+                        self.seq_num,
+                        packet.seq_num
+                    );
                 }
             }
             Err(message) => {
-                // TODO(Kaarel): log message?
-                panic!(message);
+                log::debug!("Malformed AckPacket: {}", message);
             }
         }
     }
@@ -261,11 +263,14 @@ impl SerialWorker {
                 if unacked.contains_key(&packet.seq_num) {
                     unacked.remove(&packet.seq_num);
                 } else {
-                    // TODO(Kaarel): log message?
+                    log::debug!(
+                        "Received Ack for unknown packet - seq_num: {}",
+                        packet.seq_num
+                    );
                 }
             }
             Err(message) => {
-                // TODO(Kaarel): log message?
+                log::debug!("{}", message);
             }
         }
     }
@@ -276,7 +281,7 @@ impl SerialWorker {
                 self.tx.send(Event::Data(packet.data)).unwrap();
             }
             Err(message) => {
-                // TODO(Kaarel): log message?
+                log::debug!("{}", message);
             }
         }
     }
@@ -306,10 +311,16 @@ impl<'a> ConnectionWorker<'a> {
                     Event::Stop => {
                         return true;
                     }
-                    e => panic!(format!("Unexpected event {:?}", e)),
+                    e => {
+                        log::error!("Unexpected event {:?}", e);
+                        panic!("Unexpected event {:?}", e);
+                    }
                 },
                 Err(RecvTimeoutError::Timeout) => {}
-                Err(e) => panic!(format!("Receive error! {:?}", e)),
+                Err(e) => {
+                    log::error!("Receive error! {:?}", e);
+                    panic!("Receive error! {:?}", e);
+                }
             }
             self.handle_unacked_data();
         }
@@ -590,13 +601,7 @@ mod tests {
             reads.push(input);
         }
 
-        let mut worker = SerialWorker::new(
-            port,
-            tx,
-            loopback_tx,
-            stopper_rx,
-            Arc::default(),
-        );
+        let mut worker = SerialWorker::new(port, tx, loopback_tx, stopper_rx, Arc::default());
 
         let handle = thread::spawn(move || {
             thread::sleep(Duration::from_millis(100));
@@ -605,18 +610,12 @@ mod tests {
         worker.start();
         handle.join().unwrap();
 
-        match worker_rx
-            .recv_timeout(Duration::from_millis(100))
-            .unwrap()
-        {
+        match worker_rx.recv_timeout(Duration::from_millis(100)).unwrap() {
             Event::Data(result) => assert_eq!(result, output),
             other => panic!("Expected Event::Data, got {:?}", other),
         }
 
-        match sender_rx
-            .recv_timeout(Duration::from_millis(100))
-            .unwrap()
-        {
+        match sender_rx.recv_timeout(Duration::from_millis(100)).unwrap() {
             Event::Data(result) => assert_eq!(result, ack),
             other => panic!("Expected Event::Data, got {:?}", other),
         }

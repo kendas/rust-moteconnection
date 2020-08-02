@@ -54,38 +54,48 @@ impl TransportBuilder for SFBuilder {
             .spawn(move || {
                 let mut stop = false;
                 while !stop {
+                    log::info!("Connecting to {}", addr);
                     if let Ok(mut stream) = TcpStream::connect(addr) {
+                        log::info!("Connected.");
+                        let mut read_handle = None;
                         if do_handshake(&mut stream).is_err() {
                             tcp_tx.send(Event::Disconnected).unwrap();
-                            continue;
-                        }
-                        tcp_tx.send(Event::Connected).unwrap();
+                            log::debug!("Handshake failed.");
+                        } else {
+                            log::info!("Handshake successful.");
+                            tcp_tx.send(Event::Connected).unwrap();
 
-                        let thread_tx = tcp_tx.clone();
-                        let thread_stream = stream.try_clone().unwrap();
+                            let thread_tx = tcp_tx.clone();
+                            let thread_stream = stream.try_clone().unwrap();
 
-                        let read_handle = Builder::new()
-                            .name("sf-read".into())
-                            .spawn(move || {
-                                TcpWorker {
-                                    stream: thread_stream,
-                                    tx: thread_tx,
-                                }
-                                .start();
-                            })
-                            .unwrap();
+                            read_handle = Some(
+                                Builder::new()
+                                    .name("sf-read".into())
+                                    .spawn(move || {
+                                        TcpWorker {
+                                            stream: thread_stream,
+                                            tx: thread_tx,
+                                        }
+                                        .start();
+                                    })
+                                    .unwrap(),
+                            );
 
-                        {
-                            let mut worker = ConnectionWorker {
-                                rx: &tcp_rx,
-                                stream: stream.try_clone().unwrap(),
-                            };
-                            stop = worker.start();
+                            {
+                                let mut worker = ConnectionWorker {
+                                    rx: &tcp_rx,
+                                    stream: stream.try_clone().unwrap(),
+                                };
+                                stop = worker.start();
+                            }
                         }
 
                         stream.shutdown(Shutdown::Both).unwrap();
                         tcp_tx.send(Event::Disconnected).unwrap();
-                        read_handle.join().unwrap();
+                        log::info!("Disconnected.");
+                        if let Some(handle) = read_handle {
+                            handle.join().unwrap();
+                        }
                     }
 
                     if !stop {
@@ -162,22 +172,28 @@ impl<'a> ConnectionWorker<'a> {
             match self.rx.recv() {
                 Ok(v) => match v {
                     Event::Data(d) => match self.write_to_stream(d) {
+                        Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {}
                         Err(e) => {
-                            if e.kind() == std::io::ErrorKind::InvalidInput {
-                                // TODO(Kaarel): Do something useful!
-                            } else {
-                                // TODO(Kaarel): Do logging!
-                                return false;
-                            }
+                            log::warn!(
+                                "Received unexpected error while writing to the stream: {:?}",
+                                e
+                            );
+                            return false;
                         }
                         Ok(()) => {}
                     },
                     Event::Stop => {
                         return true;
                     }
-                    e => panic!(format!("Unexpected event {:?}", e)),
+                    e => {
+                        log::debug!("Unexpected event {:?}", e);
+                        panic!("Unexpected event {:?}", e);
+                    }
                 },
-                Err(e) => panic!(format!("Receive error! {:?}", e)),
+                Err(e) => {
+                    log::debug!("Receive error! {:?}", e);
+                    panic!("Receive error! {:?}", e);
+                }
             }
         }
     }

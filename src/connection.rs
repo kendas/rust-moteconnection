@@ -113,18 +113,15 @@ impl Connection {
                     handles.push((ctrl_tx, join_handle));
                 }
 
-                let result = control_rx.recv();
-                if let Err(e) = result {
-                    panic!(format!("Error {:?}", e))
-                }
+                control_rx.recv().unwrap();
                 for (tx, _) in &handles {
-                    if tx.send(()).is_err() {
-                        // TODO(Kaarel): log
+                    if let Err(e) = tx.send(()) {
+                        log::warn!("Error while sending stop signal: {}", e);
                     }
                 }
                 for (_, handle) in handles {
-                    if handle.join().is_err() {
-                        // TODO(Kaarel): log
+                    if let Err(e) = handle.join() {
+                        log::warn!("Error while stopping: {:?}", e);
                     }
                 }
             })
@@ -145,7 +142,10 @@ impl Connection {
         let mut errors = self.transport.stop().is_err();
 
         for (_, stopper) in self.dispatchers.drain() {
-            errors |= stopper().is_err();
+            if let Err(e) = stopper() {
+                errors = true;
+                log::warn!("Error while stopping a dispatcher: {}", e);
+            }
         }
 
         errors |= self.control_tx.send(()).is_err();
@@ -275,7 +275,7 @@ impl TransportWorker {
             TEvent::Disconnected => {
                 // TODO(Kaarel): Implement correct handling.
             }
-            m => panic!(format!("Unknown message from the transport: {:?}", m)),
+            m => panic!("Unknown message from the transport: {:?}", m),
         }
     }
 

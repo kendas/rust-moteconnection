@@ -9,7 +9,9 @@ edition = "2018"
 regex = "1"
 uuid = { version = "0.8", features = ["v4"] }
 serialport = "3.3.0"
+log = "0.4"
 
 [dev-dependencies]
 chrono = "0.4.13"
 clap = "2.33.1"
+stderrlog = "0.4.3"

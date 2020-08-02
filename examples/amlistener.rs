@@ -24,6 +24,13 @@ fn main() {
         )
         .get_matches();
 
+    stderrlog::new()
+        .module("moteconnection")
+        .verbosity(log::Level::Info as usize)
+        .timestamp(stderrlog::Timestamp::Millisecond)
+        .init()
+        .unwrap();
+
     let addr = matches.value_of("address").unwrap().to_string();
 
     let mut receiver = AMReceiver::new();
