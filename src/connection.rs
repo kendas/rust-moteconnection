@@ -183,10 +183,10 @@ impl ConnectionBuilder {
     /// use moteconnection::ConnectionBuilder;
     /// use moteconnection::dispatcher::am::{AMDispatcherBuilder, AMReceiver};
     ///
-    /// let mut dispatcher = AMDispatcherBuilder::new(0x1234);
     /// let mut receiver = AMReceiver::new();
-    /// dispatcher.register_default_snooper(&mut receiver);
-    /// let mut dispatcher = dispatcher.create();
+    /// let mut dispatcher = AMDispatcherBuilder::new(0x1234)
+    ///     .register_default_snooper(&mut receiver)
+    ///     .create();
     ///
     /// let builder = ConnectionBuilder::with_connection_string(String::from("sf@localhost:9002"))
     ///     .unwrap()

@@ -159,10 +159,10 @@ fn test_raw_packet_connection() {
 fn test_am_default_receiver_connection() {
     let transport = harness::TestTransport::new();
 
-    let mut dispatcher = AMDispatcherBuilder::new(0x1234);
     let mut receiver = AMReceiver::new();
-    dispatcher.register_default_receiver(&mut receiver);
-    let mut dispatcher = dispatcher.create();
+    let mut dispatcher = AMDispatcherBuilder::new(0x1234)
+        .register_default_receiver(&mut receiver)
+        .create();
 
     let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
@@ -201,10 +201,10 @@ fn test_am_default_receiver_connection() {
 fn test_am_receiver_connection() {
     let transport = harness::TestTransport::new();
 
-    let mut dispatcher = AMDispatcherBuilder::new(0x1234);
     let mut receiver = AMReceiver::new();
-    dispatcher.register_receiver(&mut receiver, 0x02);
-    let mut dispatcher = dispatcher.create();
+    let mut dispatcher = AMDispatcherBuilder::new(0x1234)
+        .register_receiver(&mut receiver, 0x02)
+        .create();
 
     let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
@@ -243,10 +243,10 @@ fn test_am_receiver_connection() {
 fn test_am_default_snooper_connection() {
     let transport = harness::TestTransport::new();
 
-    let mut dispatcher = AMDispatcherBuilder::new(0x1234);
     let mut receiver = AMReceiver::new();
-    dispatcher.register_default_snooper(&mut receiver);
-    let mut dispatcher = dispatcher.create();
+    let mut dispatcher = AMDispatcherBuilder::new(0x1234)
+        .register_default_snooper(&mut receiver)
+        .create();
 
     let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
@@ -285,10 +285,10 @@ fn test_am_default_snooper_connection() {
 fn test_am_snooper_connection() {
     let transport = harness::TestTransport::new();
 
-    let mut dispatcher = AMDispatcherBuilder::new(0x1234);
     let mut receiver = AMReceiver::new();
-    dispatcher.register_snooper(&mut receiver, 0x02);
-    let mut dispatcher = dispatcher.create();
+    let mut dispatcher = AMDispatcherBuilder::new(0x1234)
+        .register_snooper(&mut receiver, 0x02)
+        .create();
 
     let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
@@ -327,10 +327,10 @@ fn test_am_snooper_connection() {
 fn test_am_connection_send() {
     let transport = harness::TestTransport::new();
 
-    let mut dispatcher = AMDispatcherBuilder::new(0x1234);
     let mut receiver = AMReceiver::new();
-    dispatcher.register_snooper(&mut receiver, 0x02);
-    let mut dispatcher = dispatcher.create();
+    let mut dispatcher = AMDispatcherBuilder::new(0x1234)
+        .register_snooper(&mut receiver, 0x02)
+        .create();
 
     let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
