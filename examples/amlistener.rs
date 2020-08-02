@@ -2,7 +2,7 @@
 /// to stdout.
 use std::net::ToSocketAddrs;
 
-use chrono::{SecondsFormat, Utc};
+use chrono::{SecondsFormat, Local};
 use clap::{App, Arg};
 use regex::Regex;
 use serialport::SerialPortSettings;
@@ -27,18 +27,18 @@ fn main() {
     stderrlog::new()
         .module("moteconnection")
         .verbosity(log::Level::Info as usize)
-        .timestamp(stderrlog::Timestamp::Millisecond)
+        .timestamp(stderrlog::Timestamp::Microsecond)
         .init()
         .unwrap();
 
     let addr = matches.value_of("address").unwrap().to_string();
 
     let mut receiver = AMReceiver::new();
-    let mut dispatcher = AMDispatcherBuilder::new(0x0000);
-    dispatcher.group(None);
-    dispatcher.register_default_receiver(&mut receiver);
-    dispatcher.register_default_snooper(&mut receiver);
-    let mut dispatcher = dispatcher.create();
+    let mut dispatcher = AMDispatcherBuilder::new(0x0000)
+        .group(None)
+        .register_default_receiver(&mut receiver)
+        .register_default_snooper(&mut receiver)
+        .create();
 
     let _connection = ConnectionBuilder::with_connection_string(addr)
         .unwrap()
@@ -50,7 +50,7 @@ fn main() {
             let metadata = if message.metadata.len() == 2 {
                 format!(
                     "{:02X}:{}",
-                    i8::from_be_bytes([message.metadata[0]]),
+                    u8::from_be_bytes([message.metadata[0]]),
                     i8::from_be_bytes([message.metadata[1]])
                 )
             } else {
@@ -63,7 +63,7 @@ fn main() {
             };
             println!(
                 "{} {{{:02X}}}{:04X}->{:04X}[{:02X}]{:>3}: {} {}",
-                Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true),
+                Local::now().to_rfc3339_opts(SecondsFormat::Micros, true),
                 message.group,
                 message.src,
                 message.dest,

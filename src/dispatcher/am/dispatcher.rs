@@ -63,7 +63,7 @@ impl AMDispatcherBuilder {
     }
 
     /// Sets the group that is accepted for the packets.
-    pub fn group(&mut self, group: Option<u8>) -> &AMDispatcherBuilder {
+    pub fn group(mut self, group: Option<u8>) -> AMDispatcherBuilder {
         self.group = group;
         self
     }
@@ -77,7 +77,7 @@ impl AMDispatcherBuilder {
     ///
     /// Receivers handle all packets that are intended for the
     /// dispatcher address or the broadcast address.
-    pub fn register_receiver(&mut self, receiver: &mut AMReceiver, id: u8) -> &AMDispatcherBuilder {
+    pub fn register_receiver(mut self, receiver: &mut AMReceiver, id: u8) -> AMDispatcherBuilder {
         self.receivers.register_receiver(receiver, id);
         self
     }
@@ -89,7 +89,7 @@ impl AMDispatcherBuilder {
     ///
     /// The default receiver handles all packets that have not been handled
     /// by another receiver.
-    pub fn register_default_receiver(&mut self, receiver: &mut AMReceiver) -> &AMDispatcherBuilder {
+    pub fn register_default_receiver(mut self, receiver: &mut AMReceiver) -> AMDispatcherBuilder {
         self.receivers.register_default_receiver(receiver);
         self
     }
@@ -98,7 +98,7 @@ impl AMDispatcherBuilder {
     ///
     /// Snoopers handle all packets that are not intended for the
     /// dispatcher address or the broadcast address.
-    pub fn register_snooper(&mut self, receiver: &mut AMReceiver, id: u8) -> &AMDispatcherBuilder {
+    pub fn register_snooper(mut self, receiver: &mut AMReceiver, id: u8) -> AMDispatcherBuilder {
         self.receivers.register_snooper(receiver, id);
         self
     }
@@ -110,7 +110,7 @@ impl AMDispatcherBuilder {
     ///
     /// The default snooper handles all packets that have not been handled
     /// by another snooper.
-    pub fn register_default_snooper(&mut self, receiver: &mut AMReceiver) -> &AMDispatcherBuilder {
+    pub fn register_default_snooper(mut self, receiver: &mut AMReceiver) -> AMDispatcherBuilder {
         self.receivers.register_default_snooper(receiver);
         self
     }
