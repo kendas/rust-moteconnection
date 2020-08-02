@@ -8,10 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.1.0] - 2020-08-02
+
+### Added
 
 - Serial-Forwarder protocol support
+- Serial protocol support
 - Raw packet dispatcher
 - Active Message dispatcher
 - `amlistener` example application
 
-[Unreleased]: https://github.com/kendas/rust-moteconnection/releases/tag/v0.1.0
+[Unreleased]: https://github.com/kendas/rust-moteconnection/compare/0.1.0...dev
+[0.1.0]: https://github.com/kendas/rust-moteconnection/releases/tag/0.1.0
