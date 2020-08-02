@@ -12,7 +12,7 @@ use std::thread;
 use std::thread::Builder;
 use std::time::Duration;
 
-use super::{Event, TransportBuilder, Transport};
+use super::{Event, Transport, TransportBuilder};
 use crate::Bytes;
 
 /// A builder object for the serial-forwarder `Transport`
@@ -86,10 +86,10 @@ impl TransportBuilder for SFBuilder {
                         stream.shutdown(Shutdown::Both).unwrap();
                         tcp_tx.send(Event::Disconnected).unwrap();
                         read_handle.join().unwrap();
+                    }
 
-                        if !stop {
-                            thread::sleep(Duration::from_secs(30));
-                        }
+                    if !stop {
+                        thread::sleep(Duration::from_secs(30));
                     }
                 }
             })
@@ -106,7 +106,7 @@ impl TransportBuilder for SFBuilder {
                     return Err("Unable to join thread!");
                 }
                 Ok(())
-            })
+            }),
         )
     }
 }

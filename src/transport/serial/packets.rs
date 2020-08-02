@@ -26,6 +26,7 @@ pub fn calculate_crc(bytes: &[u8]) -> u16 {
 }
 
 /// The acknowledged packet
+#[derive(Clone)]
 pub struct AckPacket {
     /// The protocol byte
     pub protocol: u8,
@@ -38,6 +39,7 @@ pub struct AckPacket {
 }
 
 /// The acknowledgement packet
+#[derive(Clone)]
 pub struct Ack {
     /// The protocol byte
     pub protocol: u8,
@@ -48,6 +50,7 @@ pub struct Ack {
 }
 
 /// The unacknowledged packet
+#[derive(Clone)]
 pub struct NoAckPacket {
     /// The protocol byte
     pub protocol: u8,
