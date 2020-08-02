@@ -1,9 +1,8 @@
 //! The ActiveMessage dispatch scheme is used for sending addressed packets.
 //!
-//! The ActiveMessage dispatch scheme has the dispatch byte of 0x00.
+//! The ActiveMessage dispatch scheme has the dispatch byte of `0x00`.
 //! The general structure is the following:
 //!
-//! TODO(Kaarel): Dispatch byte
 //! ```text
 //! ┌──┬──┬─┬─┬─┬──────────╱┄╱───────┬──────────╱┄╱────────┐
 //! │  │  │ │ │ │         ╱ ╱        │         ╱ ╱         │

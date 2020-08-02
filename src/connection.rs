@@ -160,14 +160,14 @@ impl Connection {
 }
 
 impl ConnectionBuilder {
-    /// Creates a new ConnectionBuilder
+    /// Creates a new ConnectionBuilder.
     pub fn with_connection_string(connection_string: String) -> Result<ConnectionBuilder, String> {
         Ok(ConnectionBuilder::with_transport(
             ConnectionBuilder::build_transport(&connection_string)?,
         ))
     }
 
-    /// Creates a new ConenctionBuilder using a pre-built transport
+    /// Creates a new ConnectionBuilder using a specific transport builder.
     pub fn with_transport(transport: Box<dyn TransportBuilder>) -> ConnectionBuilder {
         ConnectionBuilder {
             dispatchers: HashMap::new(),
@@ -200,11 +200,6 @@ impl ConnectionBuilder {
     }
 
     /// Establishes a new connection and returns the handler.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// ```
     pub fn start(self) -> Result<Connection, String> {
         Ok(Connection::new(self.transport, self.dispatchers)?)
     }
