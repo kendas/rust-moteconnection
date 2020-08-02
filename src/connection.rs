@@ -13,8 +13,9 @@ use std::time::Duration;
 use regex::Regex;
 
 use crate::dispatcher::{Dispatcher, DispatcherHandle, Event as DEvent};
+use crate::transport::serial::SerialBuilder;
 use crate::transport::serialforwarder::SFBuilder;
-use crate::transport::{Event as TEvent, TransportBuilder, Transport};
+use crate::transport::{Event as TEvent, Transport, TransportBuilder};
 
 type DispatchTxs = HashMap<u8, Sender<DEvent>>;
 type DispatchRxs = HashMap<u8, Receiver<DEvent>>;
@@ -220,7 +221,15 @@ impl ConnectionBuilder {
                         e
                     )),
                 },
-                "serial" => Err(String::from("The serial protocol is not implemented yet!")),
+                "serial" => {
+                    match SerialBuilder::try_from(String::from(caps.get(2).unwrap().as_str())) {
+                        Ok(v) => Ok(Box::new(v)),
+                        Err(e) => Err(format!(
+                            "Error while deconstructing connection string: {}",
+                            e
+                        )),
+                    }
+                }
                 protocol => Err(format!("Unknown protocol: {}", protocol)),
             }
         } else {
@@ -347,9 +356,7 @@ mod tests {
 
     #[test]
     fn test_from_invalid_string() {
-        let result = ConnectionBuilder::with_connection_string(String::from(
-            "ser-f@no-valid:80",
-        ));
+        let result = ConnectionBuilder::with_connection_string(String::from("ser-f@no-valid:80"));
         assert_eq!(result.is_err(), true);
     }
 
@@ -359,11 +366,10 @@ mod tests {
 
         let listener = TcpListener::bind(SERVER_ADDR).unwrap();
 
-        let connection =
-            ConnectionBuilder::with_connection_string(String::from("sf@localhost"))
-                .unwrap()
-                .start()
-                .unwrap();
+        let connection = ConnectionBuilder::with_connection_string(String::from("sf@localhost"))
+            .unwrap()
+            .start()
+            .unwrap();
 
         let data = b"U ";
         let mut server_stream = listener.incoming().next().unwrap().unwrap();
