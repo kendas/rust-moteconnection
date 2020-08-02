@@ -3,7 +3,7 @@
 //! TODO(Kaarel)
 //!
 use std::collections::HashMap;
-use std::convert::{From, TryFrom};
+use std::convert::TryFrom;
 use std::iter::FromIterator;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, TryRecvError};
