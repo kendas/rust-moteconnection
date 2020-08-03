@@ -13,7 +13,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::Builder;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use regex::Regex;
 use serialport::{SerialPort, SerialPortSettings};
@@ -37,7 +37,7 @@ pub struct SerialBuilder {
 }
 
 struct SerialWorker {
-    seq_num: u8,
+    seq_num_cache: SeqNumCache,
     waiting_for_ack: Arc<Mutex<HashMap<u8, (u8, Bytes)>>>,
 
     decoder: HdlcCodec,
@@ -56,6 +56,11 @@ struct ConnectionWorker<'a> {
 
     rx: &'a Receiver<Event>,
     port: Box<dyn SerialPort>,
+}
+
+struct SeqNumCache {
+    seq_nums: HashMap<u8, Instant>,
+    timeout: Duration,
 }
 
 impl SerialBuilder {
@@ -86,43 +91,49 @@ impl TransportBuilder for SerialBuilder {
                 let timeout = Duration::from_millis(100);
                 while !stop {
                     log::info!("Connecting to {}", name);
-                    if let Ok(mut port) = serialport::open_with_settings(&name, &settings) {
-                        port.set_timeout(timeout).unwrap();
-                        let (read_stop_tx, read_stop_rx) = mpsc::channel();
-                        log::info!("Connected.");
-                        tx.send(Event::Connected).unwrap();
+                    match serialport::open_with_settings(&name, &settings) {
+                        Ok(mut port) => {
+                            port.set_timeout(timeout).unwrap();
+                            let (read_stop_tx, read_stop_rx) = mpsc::channel();
+                            log::info!("Connected.");
+                            tx.send(Event::Connected).unwrap();
 
-                        let waiting_for_ack: Arc<Mutex<HashMap<u8, (u8, Bytes)>>> = Arc::default();
+                            let waiting_for_ack: Arc<Mutex<HashMap<u8, (u8, Bytes)>>> =
+                                Arc::default();
 
-                        let mut worker = SerialWorker::new(
-                            port.try_clone().unwrap(),
-                            tx.clone(),
-                            loopback_tx.clone(),
-                            read_stop_rx,
-                            waiting_for_ack.clone(),
-                        );
-
-                        let read_handle = Builder::new()
-                            .name("serial-read".into())
-                            .spawn(move || {
-                                worker.start();
-                            })
-                            .unwrap();
-
-                        {
-                            let mut worker = ConnectionWorker::new(
+                            let mut worker = SerialWorker::new(
                                 port.try_clone().unwrap(),
-                                &rx,
+                                tx.clone(),
+                                loopback_tx.clone(),
+                                read_stop_rx,
                                 waiting_for_ack.clone(),
-                                timeout,
                             );
-                            stop = worker.start();
-                        }
 
-                        read_stop_tx.send(()).unwrap();
-                        tx.send(Event::Disconnected).unwrap();
-                        log::info!("Disconnected.");
-                        read_handle.join().unwrap();
+                            let read_handle = Builder::new()
+                                .name("serial-read".into())
+                                .spawn(move || {
+                                    worker.start();
+                                })
+                                .unwrap();
+
+                            {
+                                let mut worker = ConnectionWorker::new(
+                                    port.try_clone().unwrap(),
+                                    &rx,
+                                    waiting_for_ack.clone(),
+                                    timeout,
+                                );
+                                stop = worker.start();
+                            }
+
+                            read_stop_tx.send(()).unwrap();
+                            tx.send(Event::Disconnected).unwrap();
+                            log::info!("Disconnected.");
+                            read_handle.join().unwrap();
+                        }
+                        Err(e) => {
+                            log::warn!("Unable to connect: {:?}", e);
+                        }
                     }
 
                     if !stop {
@@ -187,7 +198,7 @@ impl SerialWorker {
     ) -> SerialWorker {
         SerialWorker {
             port,
-            seq_num: 255,
+            seq_num_cache: SeqNumCache::new(Duration::from_secs(10)),
             waiting_for_ack,
             decoder: HdlcCodec::default(),
             tx,
@@ -237,17 +248,12 @@ impl SerialWorker {
     fn handle_ack_packet(&mut self, data: Bytes) {
         match packets::AckPacket::try_from(data) {
             Ok(packet) => {
-                if packet.seq_num > self.seq_num || self.seq_num == 255 {
+                if let Ok(()) = self.seq_num_cache.insert(packet.seq_num) {
                     let ack = Ack::from(&packet);
                     self.loopback.send(Event::Data(ack.into())).unwrap();
-                    self.seq_num = packet.seq_num;
                     self.tx.send(Event::Data(packet.data)).unwrap();
                 } else {
-                    log::debug!(
-                        "Sequence number fault! Recored: {}, incoming: {}",
-                        self.seq_num,
-                        packet.seq_num
-                    );
+                    log::debug!("Sequence number {} on cooldown!", packet.seq_num);
                 }
             }
             Err(message) => {
@@ -373,6 +379,42 @@ impl<'a> ConnectionWorker<'a> {
             self.seq_num += 1;
         } else {
             self.seq_num = 0;
+        }
+    }
+}
+
+impl SeqNumCache {
+    fn new(timeout: Duration) -> SeqNumCache {
+        SeqNumCache {
+            seq_nums: Default::default(),
+            timeout,
+        }
+    }
+
+    fn insert(&mut self, seq_num: u8) -> Result<(), ()> {
+        let now = Instant::now();
+        match self.seq_nums.get(&seq_num) {
+            Some(instant) => {
+                if *instant < now - self.timeout {
+                    self.seq_nums.insert(seq_num, now);
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            }
+            None => {
+                self.seq_nums.insert(seq_num, now);
+                Ok(())
+            }
+        }
+    }
+}
+
+impl Default for SeqNumCache {
+    fn default() -> Self {
+        SeqNumCache {
+            seq_nums: Default::default(),
+            timeout: Duration::from_secs(10),
         }
     }
 }
@@ -555,6 +597,36 @@ mod tests {
                 Ok(())
             }
         }
+    }
+
+    #[test]
+    fn test_seq_num_cache_insert_success() {
+        let mut cache = SeqNumCache::default();
+        let sec_num = 0x00;
+        let result = cache.insert(sec_num);
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn test_seq_num_cache_insert_fail() {
+        let mut cache = SeqNumCache::default();
+        let sec_num = 0x00;
+
+        cache.seq_nums.insert(sec_num, Instant::now());
+        let result = cache.insert(sec_num);
+        assert_eq!(result, Err(()));
+    }
+
+    #[test]
+    fn test_seq_num_expiration() {
+        let mut cache = SeqNumCache::default();
+        let sec_num = 0x00;
+        let start = Instant::now() - Duration::from_secs(100);
+
+        cache.seq_nums.insert(sec_num, start);
+
+        let result = cache.insert(sec_num);
+        assert_eq!(result, Ok(()));
     }
 
     #[test]
