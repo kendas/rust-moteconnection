@@ -235,14 +235,12 @@ impl ConnectionWorker {
     fn start(self) {
         while let Ok(v) = self.rx.recv() {
             match v {
-                Event::Data(data) => {
-                    match Message::try_from(data) {
-                        Ok(message) => self.handle_message(message),
-                        Err(_e) => {
-                            // TODO(Kaarel): Log malformed packet.
-                        }
-                    }
-                }
+                Event::Data(data) => match Message::try_from(data) {
+                    Ok(message) => self.handle_message(message),
+                    Err(e) => log::warn!("Error while interpreting a message: {:?}", e),
+                },
+                Event::Connected => self.notify_connected(),
+                Event::Disconnected => self.notify_disconnected(),
                 Event::Stop => {
                     break;
                 }
@@ -259,6 +257,18 @@ impl ConnectionWorker {
             {
                 receiver.tx.send(Event::Data(message)).unwrap();
             }
+        }
+    }
+
+    fn notify_connected(&self) {
+        for receiver in self.receivers.handles.values() {
+            receiver.tx.send(Event::Connected).unwrap();
+        }
+    }
+
+    fn notify_disconnected(&self) {
+        for receiver in self.receivers.handles.values() {
+            receiver.tx.send(Event::Disconnected).unwrap();
         }
     }
 }

@@ -22,6 +22,7 @@ pub struct SFBuilder {
 struct TcpWorker {
     stream: TcpStream,
     tx: Sender<Event<Bytes>>,
+    loopback_tx: Sender<Event<Bytes>>
 }
 
 struct ConnectionWorker<'a> {
@@ -46,6 +47,7 @@ impl TransportBuilder for SFBuilder {
     fn start(&self) -> Transport {
         let (tcp_tx, transport_rx) = mpsc::channel();
         let (transport_tx, tcp_rx) = mpsc::channel();
+        let loopback_tx = transport_tx.clone();
         let addr = self.addr;
 
         let join_handle = Builder::new()
@@ -67,6 +69,7 @@ impl TransportBuilder for SFBuilder {
 
                             let thread_tx = tcp_tx.clone();
                             let thread_stream = stream.try_clone().unwrap();
+                            let loopback_tx = loopback_tx.clone();
 
                             read_handle = Some(
                                 Builder::new()
@@ -75,6 +78,7 @@ impl TransportBuilder for SFBuilder {
                                         TcpWorker {
                                             stream: thread_stream,
                                             tx: thread_tx,
+                                            loopback_tx,
                                         }
                                         .start();
                                     })
@@ -166,9 +170,18 @@ impl TryFrom<String> for SFBuilder {
 
 impl TcpWorker {
     fn start(&mut self) {
-        while let Ok(data) = self.read_from_stream() {
-            if !data.is_empty() {
-                self.tx.send(Event::Data(data)).unwrap();
+        loop {
+            match self.read_from_stream() {
+                Ok(data) => {
+                    if !data.is_empty() {
+                        self.tx.send(Event::Data(data)).unwrap();
+                    }
+                }
+                Err(e) => {
+                    log::info!("Error while reading from the TCP stream: {}", e);
+                    self.loopback_tx.send(Event::Disconnected).unwrap();
+                    break;
+                }
             }
         }
     }
@@ -200,6 +213,9 @@ impl<'a> ConnectionWorker<'a> {
                         }
                         Ok(()) => {}
                     },
+                    Event::Disconnected => {
+                        return false;
+                    }
                     Event::Stop => {
                         return true;
                     }
@@ -341,7 +357,8 @@ mod tests {
         let (tx, _) = mpsc::channel();
         let mut worker = TcpWorker {
             stream: client_stream.try_clone().unwrap(),
-            tx,
+            tx: tx.clone(),
+            loopback_tx: tx,
         };
 
         server_stream.write_all(&data[..]).unwrap();

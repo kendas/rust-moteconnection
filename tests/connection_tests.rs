@@ -107,6 +107,15 @@ fn test_tcp_connection() {
     server.accept();
     server.do_handshake();
 
+    match dispatcher
+        .rx
+        .recv_timeout(Duration::from_millis(1000))
+        .unwrap()
+    {
+        Event::Connected => {}
+        e => panic!(format!("Expected Event::Data, received {:?}", e)),
+    }
+
     let mut input = vec![1, 2, 3];
 
     server.write(&mut input[..]);

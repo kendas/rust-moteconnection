@@ -296,12 +296,8 @@ impl TransportWorker {
     fn handle_data(&self, data: Event<Bytes>) {
         match data {
             Event::Data(message) => self.send(message),
-            Event::Connected => {
-                // TODO(Kaarel): Implement correct handling.
-            }
-            Event::Disconnected => {
-                // TODO(Kaarel): Implement correct handling.
-            }
+            Event::Connected => self.notify_connected(),
+            Event::Disconnected => self.notify_disconnected(),
             m => panic!("Unknown message from the transport: {:?}", m),
         }
     }
@@ -311,6 +307,18 @@ impl TransportWorker {
             dispatcher
                 .send(Event::Data(Vec::from(&message[1..])))
                 .unwrap();
+        }
+    }
+
+    fn notify_connected(&self) {
+        for dispatcher in self.txs.values() {
+            dispatcher.send(Event::Connected).unwrap();
+        }
+    }
+
+    fn notify_disconnected(&self) {
+        for dispatcher in self.txs.values() {
+            dispatcher.send(Event::Disconnected).unwrap();
         }
     }
 }
@@ -489,8 +497,8 @@ mod tests {
         let data = Event::Connected;
         worker.handle_data(data);
 
-        match rx.try_recv() {
-            Err(TryRecvError::Empty) => {}
+        match rx.recv() {
+            Ok(Event::Connected) => {}
             e => panic!(format!("Unexpected output: {:?}", e)),
         }
     }
@@ -511,8 +519,8 @@ mod tests {
         let data = Event::Disconnected;
         worker.handle_data(data);
 
-        match rx.try_recv() {
-            Err(TryRecvError::Empty) => {}
+        match rx.recv() {
+            Ok(Event::Disconnected) => {}
             e => panic!(format!("Unexpected output: {:?}", e)),
         }
     }

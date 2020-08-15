@@ -18,15 +18,27 @@ fn main() {
         ))
         .arg(
             Arg::with_name("address")
-                .help("The address that is ")
                 .validator(validate_connection_string)
-                .required(true),
+                .required(true)
+                .help("The address that is "),
+        )
+        .arg(
+            Arg::with_name("v")
+                .short("v")
+                .multiple(true)
+                .help("Sets the level of verbosity"),
         )
         .get_matches();
 
+    let verbosity = match matches.occurrences_of("v") {
+        0 => log::Level::Error,
+        1 => log::Level::Warn,
+        2 => log::Level::Info,
+        3 | _ => log::Level::Debug,
+    };
     stderrlog::new()
         .module("moteconnection")
-        .verbosity(log::Level::Info as usize)
+        .verbosity(verbosity as usize)
         .timestamp(stderrlog::Timestamp::Microsecond)
         .init()
         .unwrap();
