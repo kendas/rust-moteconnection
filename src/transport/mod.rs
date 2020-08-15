@@ -4,6 +4,7 @@
 //! A transport layer is responsible the low level communication between
 //! the radio module to the `moteconnection` library.
 use std::sync::mpsc::{Receiver, Sender};
+use std::time::Duration;
 
 use crate::{Bytes, Event};
 
@@ -29,6 +30,9 @@ pub struct TransportHandle {
 pub trait TransportBuilder {
     /// Starts the transport manager and returns the handle.
     fn start(&self) -> Transport;
+
+    /// Sets the timeout for reconnecting to the underlying transport.
+    fn set_reconnect_timeout(&mut self, timeout: Duration);
 }
 
 impl Transport {

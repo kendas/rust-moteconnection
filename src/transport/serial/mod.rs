@@ -32,6 +32,7 @@ const NOACKPACKET: u8 = 0x45;
 /// A builder object for the serial protocol `Transport`
 pub struct SerialBuilder {
     name: String,
+    reconnect_timeout: Duration,
     settings: SerialPortSettings,
 }
 
@@ -67,28 +68,28 @@ impl SerialBuilder {
     ///
     /// TODO(Kaarel): Usage
     pub fn new(name: String, settings: SerialPortSettings) -> SerialBuilder {
-        SerialBuilder { name, settings }
+        SerialBuilder {
+            name,
+            settings,
+            reconnect_timeout: Duration::from_secs(30),
+        }
     }
 }
 
 impl TransportBuilder for SerialBuilder {
-    /// Creates a new `Transport` object that uses the Serial protocol
-    /// and starts its operation.
-    ///
-    /// TODO(Kaarel): Usage
     fn start(&self) -> Transport {
         let (tx, connection_rx) = mpsc::channel();
         let (connection_tx, rx) = mpsc::channel();
         let name = self.name.clone();
         let settings = self.settings;
         let loopback_tx = connection_tx.clone();
+        let reconnection_timeout = self.reconnect_timeout;
 
         let join_handle = Builder::new()
             .name("serial-write".into())
             .spawn(move || {
                 let mut stop = false;
                 let timeout = Duration::from_millis(100);
-                let reconnection_timeout = Duration::from_secs(30);
                 while !stop {
                     log::info!("Connecting to {}", name);
                     match serialport::open_with_settings(&name, &settings) {
@@ -174,6 +175,10 @@ impl TransportBuilder for SerialBuilder {
                 Ok(())
             }),
         )
+    }
+
+    fn set_reconnect_timeout(&mut self, timeout: Duration) {
+        self.reconnect_timeout = timeout;
     }
 }
 

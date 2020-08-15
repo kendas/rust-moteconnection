@@ -236,6 +236,12 @@ impl ConnectionBuilder {
         Ok(Connection::new(self.transport, self.dispatchers)?)
     }
 
+    /// Sets the reconnection timeout for the connection.
+    pub fn reconnect_timeout(mut self, timeout: Duration) -> Self {
+        self.transport.set_reconnect_timeout(timeout);
+        self
+    }
+
     fn build_transport(connection_string: &str) -> Result<Box<dyn TransportBuilder>, String> {
         let re = Regex::new(r"^(sf|serial)@([^:]+(:\d+)?)$").unwrap();
         if re.is_match(connection_string) {
@@ -386,6 +392,7 @@ fn decompose_dispatch_handles(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::utils::TestTransport;
     use std::io::{Read, Write};
     use std::net::{Shutdown, TcpListener};
 
@@ -632,5 +639,16 @@ mod tests {
             Event::Data(output) => assert_eq!(output, vec![1, 2, 2]),
             e => panic!(format!("Unexpected output: {:?}", e)),
         }
+    }
+
+    #[test]
+    fn test_connection_reconnect_timeout() {
+        let transport_builder = TestTransport::new();
+        let timeout = Duration::from_secs(10);
+
+        ConnectionBuilder::with_transport(Box::new(transport_builder.clone()))
+            .reconnect_timeout(timeout);
+
+        assert_eq!(*transport_builder.reconnect_timeout.borrow(), timeout);
     }
 }

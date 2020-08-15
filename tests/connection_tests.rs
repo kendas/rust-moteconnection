@@ -15,6 +15,7 @@ mod harness {
     use std::rc::Rc;
     use std::sync::mpsc;
     use std::sync::mpsc::{Receiver, Sender};
+    use std::time::Duration;
 
     use moteconnection::transport::{Transport, TransportBuilder, TransportHandle};
     use moteconnection::{Bytes, Event};
@@ -70,6 +71,7 @@ mod harness {
         pub handle: Rc<RefCell<Option<TransportHandle>>>,
         pub internal_tx: Rc<Sender<Event<Bytes>>>,
         pub internal_rx: Rc<Receiver<Event<Bytes>>>,
+        pub reconnect_timeout: Duration,
     }
 
     impl TestTransport {
@@ -80,6 +82,7 @@ mod harness {
                 handle: Rc::new(RefCell::new(Some(TransportHandle { tx, rx }))),
                 internal_tx: Rc::new(internal_tx),
                 internal_rx: Rc::new(internal_rx),
+                reconnect_timeout: Duration::from_secs(30),
             }
         }
     }
@@ -88,6 +91,10 @@ mod harness {
         fn start(&self) -> Transport {
             let TransportHandle { tx, rx } = self.handle.borrow_mut().take().unwrap();
             Transport::new(tx, rx)
+        }
+
+        fn set_reconnect_timeout(&mut self, timeout: Duration) {
+            self.reconnect_timeout = timeout;
         }
     }
 }

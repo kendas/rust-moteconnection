@@ -5,6 +5,7 @@
 mod connection;
 pub mod dispatcher;
 pub mod transport;
+mod tests;
 
 pub use connection::{Connection, ConnectionBuilder};
 pub use dispatcher::am::AMDispatcher;

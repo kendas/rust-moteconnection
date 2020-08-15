@@ -17,12 +17,13 @@ use crate::{Bytes, Event};
 /// A builder object for the serial-forwarder `Transport`
 pub struct SFBuilder {
     addr: SocketAddr,
+    reconnect_timeout: Duration,
 }
 
 struct TcpWorker {
     stream: TcpStream,
     tx: Sender<Event<Bytes>>,
-    loopback_tx: Sender<Event<Bytes>>
+    loopback_tx: Sender<Event<Bytes>>,
 }
 
 struct ConnectionWorker<'a> {
@@ -35,26 +36,25 @@ impl SFBuilder {
     ///
     /// TODO(Kaarel): Usage
     pub fn new(addr: SocketAddr) -> Self {
-        SFBuilder { addr }
+        SFBuilder {
+            addr,
+            reconnect_timeout: Duration::from_secs(30),
+        }
     }
 }
 
 impl TransportBuilder for SFBuilder {
-    /// Creates a new `Transport` object that uses the SerialForwarder
-    /// protocol and starts its operation.
-    ///
-    /// TODO(Kaarel): Usage
     fn start(&self) -> Transport {
         let (tcp_tx, transport_rx) = mpsc::channel();
         let (transport_tx, tcp_rx) = mpsc::channel();
         let loopback_tx = transport_tx.clone();
         let addr = self.addr;
+        let reconnection_timeout = self.reconnect_timeout;
 
         let join_handle = Builder::new()
             .name("sf-write".into())
             .spawn(move || {
                 let mut stop = false;
-                let reconnection_timeout = Duration::from_secs(30);
                 while !stop {
                     log::info!("Connecting to {}", addr);
                     if let Ok(mut stream) = TcpStream::connect(addr) {
@@ -141,6 +141,10 @@ impl TransportBuilder for SFBuilder {
             }),
         )
     }
+
+    fn set_reconnect_timeout(&mut self, timeout: Duration) {
+        self.reconnect_timeout = timeout;
+    }
 }
 
 impl From<SocketAddr> for SFBuilder {
@@ -159,7 +163,7 @@ impl TryFrom<String> for SFBuilder {
             addr
         };
         match addr.to_socket_addrs()?.next() {
-            Some(addr) => Ok(SFBuilder { addr }),
+            Some(addr) => Ok(SFBuilder::new(addr)),
             None => Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Unable to resolve the address",

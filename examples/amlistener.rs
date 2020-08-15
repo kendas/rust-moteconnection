@@ -1,6 +1,7 @@
 /// Connects to a serial-frowarder port and prints all incoming messages
 /// to stdout.
 use std::net::ToSocketAddrs;
+use std::time::Duration;
 
 use chrono::{Local, SecondsFormat};
 use clap::{App, Arg};
@@ -54,6 +55,7 @@ fn main() {
 
     let _connection = ConnectionBuilder::with_connection_string(addr)
         .unwrap()
+        .reconnect_timeout(Duration::from_secs(10))
         .register_dispatcher(&mut dispatcher)
         .start();
 
