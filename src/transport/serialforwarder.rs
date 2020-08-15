@@ -8,9 +8,8 @@ use std::io::{Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
-use std::thread;
 use std::thread::Builder;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use super::{Event, Transport, TransportBuilder};
 use crate::Bytes;
@@ -53,6 +52,7 @@ impl TransportBuilder for SFBuilder {
             .name("sf-write".into())
             .spawn(move || {
                 let mut stop = false;
+                let reconnection_timeout = Duration::from_secs(30);
                 while !stop {
                     log::info!("Connecting to {}", addr);
                     if let Ok(mut stream) = TcpStream::connect(addr) {
@@ -97,9 +97,24 @@ impl TransportBuilder for SFBuilder {
                             handle.join().unwrap();
                         }
                     }
+                    // Drain the queue and stop if requested.
+                    let end = Instant::now() + reconnection_timeout;
+                    while !stop {
+                        let now = Instant::now();
 
-                    if !stop {
-                        thread::sleep(Duration::from_secs(30));
+                        if let Ok(message) = tcp_rx.recv_timeout(end - now) {
+                            match message {
+                                Event::Stop => stop = true,
+                                Event::Data(v) => log::debug!(
+                                    "Dropping data packet due to being disconnected: {:?}.",
+                                    v
+                                ),
+                                m => {
+                                    log::warn!("Unknown message! {:?}", m);
+                                    panic!("Unknown message! {:?}", m)
+                                }
+                            }
+                        }
                     }
                 }
             })
@@ -241,6 +256,7 @@ fn do_handshake(stream: &mut TcpStream) -> Result<(), &'static str> {
 mod tests {
     use super::*;
     use std::net::{Shutdown, TcpListener, TcpStream};
+    use std::thread;
 
     #[test]
     fn test_default_port() {
@@ -357,5 +373,22 @@ mod tests {
             v => panic!(format!("Expected a closed stream, got {:?}", v)),
         }
         assert_eq!(read_buf, vec![]);
+    }
+
+    #[test]
+    fn test_pre_connection_stop() {
+        let (tx, rx) = mpsc::channel();
+
+        let handle = thread::spawn(move || {
+            let transport = SFBuilder::try_from(String::from("127.255.255.255:12345"))
+                .unwrap()
+                .start();
+            transport.stop().unwrap();
+            tx.send(()).unwrap();
+        });
+
+        thread::sleep(Duration::from_millis(100));
+        assert_eq!(rx.try_recv().unwrap(), ());
+        handle.join().unwrap();
     }
 }

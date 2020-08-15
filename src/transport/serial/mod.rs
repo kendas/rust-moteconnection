@@ -11,7 +11,6 @@ use std::io::ErrorKind;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
-use std::thread;
 use std::thread::Builder;
 use std::time::{Duration, Instant};
 
@@ -89,6 +88,7 @@ impl TransportBuilder for SerialBuilder {
             .spawn(move || {
                 let mut stop = false;
                 let timeout = Duration::from_millis(100);
+                let reconnection_timeout = Duration::from_secs(30);
                 while !stop {
                     log::info!("Connecting to {}", name);
                     match serialport::open_with_settings(&name, &settings) {
@@ -135,9 +135,24 @@ impl TransportBuilder for SerialBuilder {
                             log::warn!("Unable to connect: {:?}", e);
                         }
                     }
+                    // Drain the queue and stop if requested.
+                    let end = Instant::now() + reconnection_timeout;
+                    while !stop {
+                        let now = Instant::now();
 
-                    if !stop {
-                        thread::sleep(Duration::from_secs(30));
+                        if let Ok(message) = rx.recv_timeout(end - now) {
+                            match message {
+                                Event::Stop => stop = true,
+                                Event::Data(v) => log::debug!(
+                                    "Dropping data packet due to being disconnected: {:?}.",
+                                    v
+                                ),
+                                m => {
+                                    log::warn!("Unknown message! {:?}", m);
+                                    panic!("Unknown message! {:?}", m)
+                                }
+                            }
+                        }
                     }
                 }
             })
@@ -423,6 +438,7 @@ impl Default for SeqNumCache {
 mod tests {
     use std::sync::mpsc;
     use std::sync::mpsc::TryRecvError;
+    use std::thread;
     use std::time::Duration;
 
     use super::*;
@@ -937,5 +953,20 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_pre_connection_stop() {
+        let (tx, rx) = mpsc::channel();
+
+        let handle = thread::spawn(move || {
+            let transport = SerialBuilder::new("invalid".to_string(), Default::default()).start();
+            transport.stop().unwrap();
+            tx.send(()).unwrap();
+        });
+
+        thread::sleep(Duration::from_millis(100));
+        assert_eq!(rx.try_recv().unwrap(), ());
+        handle.join().unwrap();
     }
 }
