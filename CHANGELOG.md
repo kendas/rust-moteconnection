@@ -5,9 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2020-08-15
 
 ### Added
+
+- The `Connection` now has a configurable reconnection timeout option.
+
 ### Changed
 
 - All messages sent during a disconnection are now dropped.
@@ -15,14 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Therefore, the `Event::Connected` and `Event::Disconnected` can be used
   by the user.
 
-### Deprecated
-### Removed
 ### Fixed
 
 - The `Transport`-s are now able to cleanly exit when no connection could
   be established.
-
-### Security
 
 ## [0.1.0] - 2020-08-02
 
@@ -34,5 +33,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Active Message dispatcher
 - `amlistener` example application
 
-[Unreleased]: https://github.com/kendas/rust-moteconnection/compare/0.1.0...dev
+[0.2.0]: https://github.com/kendas/rust-moteconnection/releases/tag/0.2.0
 [0.1.0]: https://github.com/kendas/rust-moteconnection/releases/tag/0.1.0
