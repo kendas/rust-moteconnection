@@ -4,15 +4,16 @@ use std::sync::mpsc::{Receiver, Sender};
 use uuid::Uuid;
 
 use super::Message;
+use crate::Event;
 
 pub(super) struct AMReceiverHandle {
-    pub tx: Sender<Message>,
+    pub tx: Sender<Event<Message>>,
 }
 
 /// Allows the receiving and sending of ActiveMessage packets.
 pub struct AMReceiver {
     /// The receiver for ActiveMessage packets.
-    pub rx: Receiver<Message>,
+    pub rx: Receiver<Event<Message>>,
     id: Uuid,
     handle: Option<AMReceiverHandle>,
 }

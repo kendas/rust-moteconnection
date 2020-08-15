@@ -17,8 +17,8 @@ use std::time::{Duration, Instant};
 use regex::Regex;
 use serialport::{SerialPort, SerialPortSettings};
 
-use super::{Event, Transport, TransportBuilder};
-use crate::Bytes;
+use super::{Transport, TransportBuilder};
+use crate::{Bytes, Event};
 use hdlc::HdlcCodec;
 use packets::{Ack, AckPacket, NoAckPacket};
 
@@ -41,8 +41,8 @@ struct SerialWorker {
 
     decoder: HdlcCodec,
 
-    tx: Sender<Event>,
-    loopback: Sender<Event>,
+    tx: Sender<Event<Bytes>>,
+    loopback: Sender<Event<Bytes>>,
     stopper: Receiver<()>,
     port: Box<dyn SerialPort>,
 }
@@ -53,7 +53,7 @@ struct ConnectionWorker<'a> {
     seq_num: u8,
     waiting_for_ack: Arc<Mutex<HashMap<u8, (u8, Bytes)>>>,
 
-    rx: &'a Receiver<Event>,
+    rx: &'a Receiver<Event<Bytes>>,
     port: Box<dyn SerialPort>,
 }
 
@@ -139,6 +139,9 @@ impl TransportBuilder for SerialBuilder {
                     let end = Instant::now() + reconnection_timeout;
                     while !stop {
                         let now = Instant::now();
+                        if now >= end {
+                            break;
+                        }
 
                         if let Ok(message) = rx.recv_timeout(end - now) {
                             match message {
@@ -206,8 +209,8 @@ impl TryFrom<String> for SerialBuilder {
 impl SerialWorker {
     fn new(
         port: Box<dyn SerialPort>,
-        tx: Sender<Event>,
-        loopback: Sender<Event>,
+        tx: Sender<Event<Bytes>>,
+        loopback: Sender<Event<Bytes>>,
         stopper: Receiver<()>,
         waiting_for_ack: Arc<Mutex<HashMap<u8, (u8, Bytes)>>>,
     ) -> SerialWorker {
@@ -311,7 +314,7 @@ impl SerialWorker {
 impl<'a> ConnectionWorker<'a> {
     fn new(
         port: Box<dyn SerialPort>,
-        rx: &'a Receiver<Event>,
+        rx: &'a Receiver<Event<Bytes>>,
         waiting_for_ack: Arc<Mutex<HashMap<u8, (u8, Bytes)>>>,
         timeout: Duration,
     ) -> ConnectionWorker {

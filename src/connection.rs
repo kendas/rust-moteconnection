@@ -12,13 +12,14 @@ use std::time::Duration;
 
 use regex::Regex;
 
-use crate::dispatcher::{Dispatcher, DispatcherHandle, Event as DEvent};
+use crate::dispatcher::{Dispatcher, DispatcherHandle};
 use crate::transport::serial::SerialBuilder;
 use crate::transport::serialforwarder::SFBuilder;
-use crate::transport::{Event as TEvent, Transport, TransportBuilder};
+use crate::transport::{Transport, TransportBuilder};
+use crate::{Bytes, Event};
 
-type DispatchTxs = HashMap<u8, Sender<DEvent>>;
-type DispatchRxs = HashMap<u8, Receiver<DEvent>>;
+type DispatchTxs = HashMap<u8, Sender<Event<Bytes>>>;
+type DispatchRxs = HashMap<u8, Receiver<Event<Bytes>>>;
 type DispatchStoppers = HashMap<u8, Box<dyn FnOnce() -> Result<(), &'static str>>>;
 
 /// The `Connection` struct manages a persistent connection with a radio module.
@@ -47,7 +48,7 @@ pub struct ConnectionBuilder {
 struct TransportWorker {
     stop: Receiver<()>,
     timeout: Duration,
-    rx: Receiver<TEvent>,
+    rx: Receiver<Event<Bytes>>,
     txs: DispatchTxs,
 }
 
@@ -55,8 +56,8 @@ struct DispatcherWorker {
     dispatch_byte: u8,
     stop: Receiver<()>,
     timeout: Duration,
-    rx: Receiver<DEvent>,
-    tx: Sender<TEvent>,
+    rx: Receiver<Event<Bytes>>,
+    tx: Sender<Event<Bytes>>,
 }
 
 impl Connection {
@@ -68,7 +69,7 @@ impl Connection {
     ///
     /// ```rust
     /// # use moteconnection::{ConnectionBuilder, RawDispatcher};
-    /// 
+    ///
     /// let mut dispatcher = RawDispatcher::new(0x01);
     /// let connection = ConnectionBuilder::with_connection_string("sf@localhost".to_string())
     ///     .unwrap()
@@ -156,7 +157,7 @@ impl Connection {
     ///
     /// ```rust
     /// # use moteconnection::{ConnectionBuilder, RawDispatcher};
-    /// 
+    ///
     /// let mut dispatcher = RawDispatcher::new(0x01);
     /// let connection = ConnectionBuilder::with_connection_string("sf@localhost".to_string())
     ///     .unwrap()
@@ -292,13 +293,13 @@ impl TransportWorker {
         }
     }
 
-    fn handle_data(&self, data: TEvent) {
+    fn handle_data(&self, data: Event<Bytes>) {
         match data {
-            TEvent::Data(message) => self.send(message),
-            TEvent::Connected => {
+            Event::Data(message) => self.send(message),
+            Event::Connected => {
                 // TODO(Kaarel): Implement correct handling.
             }
-            TEvent::Disconnected => {
+            Event::Disconnected => {
                 // TODO(Kaarel): Implement correct handling.
             }
             m => panic!("Unknown message from the transport: {:?}", m),
@@ -308,7 +309,7 @@ impl TransportWorker {
     fn send(&self, message: Vec<u8>) {
         if let Some(dispatcher) = self.txs.get(&message[0]) {
             dispatcher
-                .send(DEvent::Data(Vec::from(&message[1..])))
+                .send(Event::Data(Vec::from(&message[1..])))
                 .unwrap();
         }
     }
@@ -339,9 +340,9 @@ impl DispatcherWorker {
         }
     }
 
-    fn handle_data(&self, data: DEvent) {
+    fn handle_data(&self, data: Event<Bytes>) {
         match data {
-            DEvent::Data(message) => self.send(message),
+            Event::Data(message) => self.send(message),
             e => {
                 panic!(format!("Unknown event {:?}!", e));
             }
@@ -350,7 +351,7 @@ impl DispatcherWorker {
 
     fn send(&self, message: Vec<u8>) {
         self.tx
-            .send(TEvent::Data(Vec::from_iter(
+            .send(Event::Data(Vec::from_iter(
                 vec![self.dispatch_byte]
                     .into_iter()
                     .chain(message.into_iter()),
@@ -463,11 +464,11 @@ mod tests {
             txs: HashMap::from_iter(vec![(1, worker_tx)].into_iter()),
         };
 
-        let data = TEvent::Data(vec![1, 2]);
+        let data = Event::Data(vec![1, 2]);
         worker.handle_data(data);
 
         match rx.recv().unwrap() {
-            DEvent::Data(output) => assert_eq!(output, vec![2]),
+            Event::Data(output) => assert_eq!(output, vec![2]),
             e => panic!(format!("Unexpected output: {:?}", e)),
         }
     }
@@ -485,7 +486,7 @@ mod tests {
             txs: HashMap::from_iter(vec![(1, worker_tx)].into_iter()),
         };
 
-        let data = TEvent::Connected;
+        let data = Event::Connected;
         worker.handle_data(data);
 
         match rx.try_recv() {
@@ -507,7 +508,7 @@ mod tests {
             txs: HashMap::from_iter(vec![(1, worker_tx)].into_iter()),
         };
 
-        let data = TEvent::Disconnected;
+        let data = Event::Disconnected;
         worker.handle_data(data);
 
         match rx.try_recv() {
@@ -533,7 +534,7 @@ mod tests {
         worker.send(data);
 
         match rx.recv().unwrap() {
-            DEvent::Data(output) => assert_eq!(output, vec![2]),
+            Event::Data(output) => assert_eq!(output, vec![2]),
             e => panic!(format!("Unexpected output: {:?}", e)),
         }
     }
@@ -593,11 +594,11 @@ mod tests {
             tx: worker_tx,
         };
 
-        let data = DEvent::Data(vec![1, 2]);
+        let data = Event::Data(vec![1, 2]);
         worker.handle_data(data);
 
         match rx.recv().unwrap() {
-            TEvent::Data(output) => assert_eq!(output, vec![1, 1, 2]),
+            Event::Data(output) => assert_eq!(output, vec![1, 1, 2]),
             e => panic!(format!("Unexpected output: {:?}", e)),
         }
     }
@@ -620,7 +621,7 @@ mod tests {
         worker.send(data);
 
         match rx.recv().unwrap() {
-            TEvent::Data(output) => assert_eq!(output, vec![1, 2, 2]),
+            Event::Data(output) => assert_eq!(output, vec![1, 2, 2]),
             e => panic!(format!("Unexpected output: {:?}", e)),
         }
     }

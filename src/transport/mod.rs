@@ -5,23 +5,10 @@
 //! the radio module to the `moteconnection` library.
 use std::sync::mpsc::{Receiver, Sender};
 
-use crate::Bytes;
+use crate::{Bytes, Event};
 
 pub mod serial;
 pub mod serialforwarder;
-
-/// Lists events that can be sent to and from the Transport implementation.
-#[derive(Debug)]
-pub enum Event {
-    /// The connection has been established.
-    Connected,
-    /// The connection has been closed.
-    Disconnected,
-    /// Contains the data to be sent or has been received.
-    Data(Bytes),
-    /// Signals the shutdown of the transport.
-    Stop,
-}
 
 /// A struct representing a transport implementation.
 pub struct Transport {
@@ -33,9 +20,9 @@ pub struct Transport {
 /// Provides a handle for the use in `Connection`.
 pub struct TransportHandle {
     /// The sender for the outging channel
-    pub tx: Sender<Event>,
+    pub tx: Sender<Event<Bytes>>,
     /// the receiver for the incoming channel
-    pub rx: Receiver<Event>,
+    pub rx: Receiver<Event<Bytes>>,
 }
 
 /// Provides the ability to create a `Transport` instance.
@@ -46,14 +33,14 @@ pub trait TransportBuilder {
 
 impl Transport {
     /// Creates a new Transport.
-    pub fn new(tx: Sender<Event>, rx: Receiver<Event>) -> Transport {
+    pub fn new(tx: Sender<Event<Bytes>>, rx: Receiver<Event<Bytes>>) -> Transport {
         Transport::with_stopper(tx, rx, Box::new(|| Ok(())))
     }
 
     /// Creates a new `Transport` with a function to be called when stopping.
     pub fn with_stopper(
-        tx: Sender<Event>,
-        rx: Receiver<Event>,
+        tx: Sender<Event<Bytes>>,
+        rx: Receiver<Event<Bytes>>,
         stopper: Box<dyn FnOnce() -> Result<(), &'static str>>,
     ) -> Transport {
         Transport {

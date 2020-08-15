@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - All messages sent during a disconnection are now dropped.
+- The `AMReceiver` now emits `Event<Message>`-s instead of `Message`-s.
+  Therefore, the `Event::Connected` and `Event::Disconnected` can be used
+  by the user.
 
 ### Deprecated
 ### Removed

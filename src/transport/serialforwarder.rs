@@ -11,8 +11,8 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread::Builder;
 use std::time::{Duration, Instant};
 
-use super::{Event, Transport, TransportBuilder};
-use crate::Bytes;
+use super::{Transport, TransportBuilder};
+use crate::{Bytes, Event};
 
 /// A builder object for the serial-forwarder `Transport`
 pub struct SFBuilder {
@@ -21,11 +21,11 @@ pub struct SFBuilder {
 
 struct TcpWorker {
     stream: TcpStream,
-    tx: Sender<Event>,
+    tx: Sender<Event<Bytes>>,
 }
 
 struct ConnectionWorker<'a> {
-    rx: &'a Receiver<Event>,
+    rx: &'a Receiver<Event<Bytes>>,
     stream: TcpStream,
 }
 
@@ -62,7 +62,7 @@ impl TransportBuilder for SFBuilder {
                             tcp_tx.send(Event::Disconnected).unwrap();
                             log::debug!("Handshake failed.");
                         } else {
-                            log::info!("Handshake successful.");
+                            log::debug!("Handshake successful.");
                             tcp_tx.send(Event::Connected).unwrap();
 
                             let thread_tx = tcp_tx.clone();
@@ -101,6 +101,9 @@ impl TransportBuilder for SFBuilder {
                     let end = Instant::now() + reconnection_timeout;
                     while !stop {
                         let now = Instant::now();
+                        if now > end {
+                            break;
+                        }
 
                         if let Ok(message) = tcp_rx.recv_timeout(end - now) {
                             match message {

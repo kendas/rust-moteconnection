@@ -2,13 +2,13 @@
 /// to stdout.
 use std::net::ToSocketAddrs;
 
-use chrono::{SecondsFormat, Local};
+use chrono::{Local, SecondsFormat};
 use clap::{App, Arg};
 use regex::Regex;
 use serialport::SerialPortSettings;
 
 use moteconnection::dispatcher::am::{AMDispatcherBuilder, AMReceiver};
-use moteconnection::ConnectionBuilder;
+use moteconnection::{ConnectionBuilder, Event};
 
 fn main() {
     let matches = App::new("amlistener")
@@ -46,38 +46,51 @@ fn main() {
         .start();
 
     loop {
-        if let Ok(message) = receiver.rx.recv() {
-            let metadata = if message.metadata.len() == 2 {
-                format!(
-                    "{:02X}:{}",
-                    u8::from_be_bytes([message.metadata[0]]),
-                    i8::from_be_bytes([message.metadata[1]])
-                )
-            } else {
-                message
-                    .metadata
-                    .into_iter()
-                    .fold(String::new(), |string, byte| {
-                        format!("{}{:02X}", string, byte)
-                    })
-            };
-            println!(
-                "{} {{{:02X}}}{:04X}->{:04X}[{:02X}]{:>3}: {} {}",
-                Local::now().to_rfc3339_opts(SecondsFormat::Micros, true),
-                message.group,
-                message.src,
-                message.dest,
-                message.id,
-                message.payload.len(),
-                message
-                    .payload
-                    .into_iter()
-                    .fold(String::new(), |string, byte| format!(
-                        "{}{:02X}",
-                        string, byte
-                    )),
-                metadata,
-            )
+        if let Ok(event) = receiver.rx.recv() {
+            match event {
+                Event::Data(message) => {
+                    let metadata = if message.metadata.len() == 2 {
+                        format!(
+                            "{:02X}:{}",
+                            u8::from_be_bytes([message.metadata[0]]),
+                            i8::from_be_bytes([message.metadata[1]])
+                        )
+                    } else {
+                        message
+                            .metadata
+                            .into_iter()
+                            .fold(String::new(), |string, byte| {
+                                format!("{}{:02X}", string, byte)
+                            })
+                    };
+                    println!(
+                        "{} {{{:02X}}}{:04X}->{:04X}[{:02X}]{:>3}: {} {}",
+                        Local::now().to_rfc3339_opts(SecondsFormat::Micros, true),
+                        message.group,
+                        message.src,
+                        message.dest,
+                        message.id,
+                        message.payload.len(),
+                        message
+                            .payload
+                            .into_iter()
+                            .fold(String::new(), |string, byte| format!(
+                                "{}{:02X}",
+                                string, byte
+                            )),
+                        metadata,
+                    )
+                }
+                Event::Connected => println!(
+                    "{} Connected.",
+                    Local::now().to_rfc3339_opts(SecondsFormat::Micros, true)
+                ),
+                Event::Disconnected => println!(
+                    "{} Disconnected.",
+                    Local::now().to_rfc3339_opts(SecondsFormat::Micros, true)
+                ),
+                o => println!("Unknown event {:?}", o),
+            }
         }
     }
 }

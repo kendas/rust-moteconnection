@@ -6,15 +6,16 @@ use std::convert::From;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
-use super::{Dispatcher, DispatcherHandle, Event};
+use crate::{Bytes, Event};
+use super::{Dispatcher, DispatcherHandle};
 
 /// Handles the dispatching of raw packets without interpreting the contents.
 pub struct RawDispatcher {
     dispatch: u8,
     /// The receiver
-    pub rx: Receiver<Event>,
+    pub rx: Receiver<Event<Bytes>>,
     /// The sender
-    pub tx: Sender<Event>,
+    pub tx: Sender<Event<Bytes>>,
     handle: Option<DispatcherHandle>,
 }
 
@@ -32,12 +33,12 @@ impl RawDispatcher {
     }
 
     /// Returns the receiver for data from the serial device.
-    pub fn rx(&self) -> &Receiver<Event> {
+    pub fn rx(&self) -> &Receiver<Event<Bytes>> {
         &self.rx
     }
 
     /// Returns the sender for data to the serial device.
-    pub fn tx(&self) -> &Sender<Event> {
+    pub fn tx(&self) -> &Sender<Event<Bytes>> {
         &self.tx
     }
 }

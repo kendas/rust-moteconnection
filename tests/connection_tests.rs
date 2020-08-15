@@ -1,13 +1,11 @@
 extern crate moteconnection;
 
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 use std::time::Duration;
 
 use moteconnection::dispatcher::am::{AMDispatcherBuilder, AMReceiver, Message};
 use moteconnection::dispatcher::raw::RawDispatcher;
-use moteconnection::dispatcher::Event as DEvent;
-use moteconnection::transport::Event;
-use moteconnection::ConnectionBuilder;
+use moteconnection::{ConnectionBuilder, Event};
 
 mod harness {
     use std::cell::RefCell;
@@ -18,8 +16,8 @@ mod harness {
     use std::sync::mpsc;
     use std::sync::mpsc::{Receiver, Sender};
 
-    use moteconnection::transport::{Event, Transport, TransportBuilder, TransportHandle};
-    use moteconnection::Bytes;
+    use moteconnection::transport::{Transport, TransportBuilder, TransportHandle};
+    use moteconnection::{Bytes, Event};
 
     pub struct TestServer {
         listener: TcpListener,
@@ -70,8 +68,8 @@ mod harness {
     #[derive(Clone)]
     pub struct TestTransport {
         pub handle: Rc<RefCell<Option<TransportHandle>>>,
-        pub internal_tx: Rc<Sender<Event>>,
-        pub internal_rx: Rc<Receiver<Event>>,
+        pub internal_tx: Rc<Sender<Event<Bytes>>>,
+        pub internal_rx: Rc<Receiver<Event<Bytes>>>,
     }
 
     impl TestTransport {
@@ -118,7 +116,7 @@ fn test_tcp_connection() {
         .recv_timeout(Duration::from_millis(1000))
         .unwrap()
     {
-        DEvent::Data(output) => assert_eq!(output[..], input[1..]),
+        Event::Data(output) => assert_eq!(output[..], input[1..]),
         e => panic!(format!("Expected Event::Data, received {:?}", e)),
     }
     connection.stop().unwrap();
@@ -144,7 +142,7 @@ fn test_raw_packet_connection() {
 
     match dispatcher.rx.recv_timeout(Duration::from_millis(1000)) {
         Ok(value) => match value {
-            DEvent::Data(output) => assert_eq!(output[..], input[1..]),
+            Event::Data(output) => assert_eq!(output[..], input[1..]),
             e => panic!(format!("Expected Event::Data, received {:?}", e)),
         },
         Err(e) => {
@@ -177,19 +175,25 @@ fn test_am_default_receiver_connection() {
         .unwrap();
 
     match receiver.rx.recv_timeout(Duration::from_millis(1000)) {
-        Ok(result) => {
-            let output = Message::try_from(result).unwrap();
+        Ok(result) => match result {
+            Event::Data(value) => {
+                let output: Message = value.try_into().unwrap();
 
-            connection.stop().unwrap();
+                connection.stop().unwrap();
 
-            assert_eq!(output.dest, 0x1234);
-            assert_eq!(output.src, 0x0001);
-            assert_eq!(output.length, 0x01);
-            assert_eq!(output.group, 0x22);
-            assert_eq!(output.id, 0x02);
-            assert_eq!(output.payload, vec![0xff]);
-            assert_eq!(output.metadata, vec![]);
-        }
+                assert_eq!(output.dest, 0x1234);
+                assert_eq!(output.src, 0x0001);
+                assert_eq!(output.length, 0x01);
+                assert_eq!(output.group, 0x22);
+                assert_eq!(output.id, 0x02);
+                assert_eq!(output.payload, vec![0xff]);
+                assert_eq!(output.metadata, vec![]);
+            }
+            o => {
+                connection.stop().unwrap();
+                panic!(format!("Unexpected Event on recv: {:?}", o));
+            }
+        },
         Err(e) => {
             connection.stop().unwrap();
             panic!(format!("Unexpected error on recv: {:?}", e));
@@ -219,19 +223,25 @@ fn test_am_receiver_connection() {
         .unwrap();
 
     match receiver.rx.recv_timeout(Duration::from_millis(1000)) {
-        Ok(result) => {
-            let output: Message = result.try_into().unwrap();
+        Ok(result) => match result {
+            Event::Data(value) => {
+                let output: Message = value.try_into().unwrap();
 
-            connection.stop().unwrap();
+                connection.stop().unwrap();
 
-            assert_eq!(output.dest, 0x1234);
-            assert_eq!(output.src, 0x0001);
-            assert_eq!(output.length, 0x01);
-            assert_eq!(output.group, 0x22);
-            assert_eq!(output.id, 0x02);
-            assert_eq!(output.payload, vec![0xff]);
-            assert_eq!(output.metadata, vec![]);
-        }
+                assert_eq!(output.dest, 0x1234);
+                assert_eq!(output.src, 0x0001);
+                assert_eq!(output.length, 0x01);
+                assert_eq!(output.group, 0x22);
+                assert_eq!(output.id, 0x02);
+                assert_eq!(output.payload, vec![0xff]);
+                assert_eq!(output.metadata, vec![]);
+            }
+            o => {
+                connection.stop().unwrap();
+                panic!(format!("Unexpected Event on recv: {:?}", o));
+            }
+        },
         Err(e) => {
             connection.stop().unwrap();
             panic!(format!("Unexpected error on recv: {:?}", e));
@@ -261,19 +271,25 @@ fn test_am_default_snooper_connection() {
         .unwrap();
 
     match receiver.rx.recv_timeout(Duration::from_millis(1000)) {
-        Ok(result) => {
-            let output: Message = result.try_into().unwrap();
+        Ok(result) => match result {
+            Event::Data(value) => {
+                let output: Message = value.try_into().unwrap();
 
-            connection.stop().unwrap();
+                connection.stop().unwrap();
 
-            assert_eq!(output.dest, 0x1235);
-            assert_eq!(output.src, 0x0001);
-            assert_eq!(output.length, 0x01);
-            assert_eq!(output.group, 0x22);
-            assert_eq!(output.id, 0x02);
-            assert_eq!(output.payload, vec![0xff]);
-            assert_eq!(output.metadata, vec![]);
-        }
+                assert_eq!(output.dest, 0x1235);
+                assert_eq!(output.src, 0x0001);
+                assert_eq!(output.length, 0x01);
+                assert_eq!(output.group, 0x22);
+                assert_eq!(output.id, 0x02);
+                assert_eq!(output.payload, vec![0xff]);
+                assert_eq!(output.metadata, vec![]);
+            }
+            o => {
+                connection.stop().unwrap();
+                panic!(format!("Unexpected Event on recv: {:?}", o));
+            }
+        },
         Err(e) => {
             connection.stop().unwrap();
             panic!(format!("Unexpected error on recv: {:?}", e));
@@ -303,19 +319,25 @@ fn test_am_snooper_connection() {
         .unwrap();
 
     match receiver.rx.recv_timeout(Duration::from_millis(1000)) {
-        Ok(result) => {
-            let output: Message = result.try_into().unwrap();
+        Ok(result) => match result {
+            Event::Data(value) => {
+                let output: Message = value.try_into().unwrap();
 
-            connection.stop().unwrap();
+                connection.stop().unwrap();
 
-            assert_eq!(output.dest, 0x1235);
-            assert_eq!(output.src, 0x0001);
-            assert_eq!(output.length, 0x01);
-            assert_eq!(output.group, 0x22);
-            assert_eq!(output.id, 0x02);
-            assert_eq!(output.payload, vec![0xff]);
-            assert_eq!(output.metadata, vec![]);
-        }
+                assert_eq!(output.dest, 0x1235);
+                assert_eq!(output.src, 0x0001);
+                assert_eq!(output.length, 0x01);
+                assert_eq!(output.group, 0x22);
+                assert_eq!(output.id, 0x02);
+                assert_eq!(output.payload, vec![0xff]);
+                assert_eq!(output.metadata, vec![]);
+            }
+            o => {
+                connection.stop().unwrap();
+                panic!(format!("Unexpected Event on recv: {:?}", o));
+            }
+        },
         Err(e) => {
             connection.stop().unwrap();
             panic!(format!("Unexpected error on recv: {:?}", e));

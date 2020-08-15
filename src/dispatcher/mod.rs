@@ -10,28 +10,17 @@
 use std::convert::TryFrom;
 use std::sync::mpsc::{Receiver, Sender};
 
-use crate::Bytes;
+use crate::{Bytes, Event};
 
 pub mod am;
 pub mod raw;
 
-/// The types of messages sent to or from the Dispatcher
-#[derive(Debug)]
-pub enum Event {
-    /// Contains any data being sent.
-    Data(Bytes),
-    /// Signals the stopping of the connection.
-    Stop,
-    /// Signals that there is an error.
-    Error,
-}
-
 /// Provides a handle representing the dispatcher for the `Connection`.
 pub struct DispatcherHandle {
     /// The sender end for the `Connection`
-    pub tx: Sender<Event>,
+    pub tx: Sender<Event<Bytes>>,
     /// The receiver end for the `Connection`
-    pub rx: Receiver<Event>,
+    pub rx: Receiver<Event<Bytes>>,
     /// The stopper function for the `Dispatcher`
     pub stopper: Box<dyn FnOnce() -> Result<(), &'static str>>,
 }
@@ -58,14 +47,14 @@ pub trait Dispatcher {
 
 impl DispatcherHandle {
     /// Creates a new DispatcherHandle.
-    pub fn new(tx: Sender<Event>, rx: Receiver<Event>) -> DispatcherHandle {
+    pub fn new(tx: Sender<Event<Bytes>>, rx: Receiver<Event<Bytes>>) -> DispatcherHandle {
         DispatcherHandle::with_stopper(tx, rx, Box::new(|| Ok(())))
     }
 
     /// Creates a new DispatcherHandle with a function to be called when stopping.
     pub fn with_stopper(
-        tx: Sender<Event>,
-        rx: Receiver<Event>,
+        tx: Sender<Event<Bytes>>,
+        rx: Receiver<Event<Bytes>>,
         stopper: Box<dyn FnOnce() -> Result<(), &'static str>>,
     ) -> DispatcherHandle {
         DispatcherHandle { tx, rx, stopper }

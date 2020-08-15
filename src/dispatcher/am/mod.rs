@@ -29,7 +29,8 @@
 //! [1]: https://github.com/proactivity-lab/docs/wiki/Serial-protocol
 use std::convert::{TryFrom, TryInto};
 
-use super::{Dispatcher, Event};
+use super::Dispatcher;
+use crate::{Bytes, Event};
 
 mod dispatcher;
 mod receiver;
@@ -178,8 +179,8 @@ impl Into<Vec<u8>> for Message {
     }
 }
 
-impl Into<Event> for Message {
-    fn into(self) -> Event {
+impl Into<Event<Bytes>> for Message {
+    fn into(self) -> Event<Bytes> {
         Event::Data(self.into())
     }
 }

@@ -8,7 +8,8 @@ use uuid::Uuid;
 
 use super::receiver::{AMReceiver, AMReceiverHandle};
 use super::{Dispatcher, Message};
-use crate::dispatcher::{DispatcherHandle, Event};
+use crate::dispatcher::DispatcherHandle;
+use crate::{Bytes, Event};
 
 /// Implements the `Dispatcher` trait for the ActiveMessage dispatch scheme.
 ///
@@ -16,7 +17,7 @@ use crate::dispatcher::{DispatcherHandle, Event};
 pub struct AMDispatcher {
     dispatch_byte: u8,
     /// The channel to send data to the device.
-    pub tx: Sender<Event>,
+    pub tx: Sender<Event<Bytes>>,
     handle: Option<DispatcherHandle>,
 }
 
@@ -39,7 +40,7 @@ struct ReceiverRegistry {
 }
 
 struct ConnectionWorker {
-    rx: Receiver<Event>,
+    rx: Receiver<Event<Bytes>>,
 
     addr: u16,
     group: Option<u8>,
@@ -256,7 +257,7 @@ impl ConnectionWorker {
                 self.receivers
                     .select_receiver(self.addr, message.dest, message.id)
             {
-                receiver.tx.send(message).unwrap();
+                receiver.tx.send(Event::Data(message)).unwrap();
             }
         }
     }
