@@ -62,7 +62,20 @@ struct DispatcherWorker {
 impl Connection {
     /// Constructs a new instance of the `Connection` struct.
     ///
-    /// TODO(Kaarel): Usage
+    /// # Usage
+    ///
+    /// The `Connection` is typically built using the `ConnectionBuilder`:
+    ///
+    /// ```rust
+    /// # use moteconnection::{ConnectionBuilder, RawDispatcher};
+    /// 
+    /// let mut dispatcher = RawDispatcher::new(0x01);
+    /// let connection = ConnectionBuilder::with_connection_string("sf@localhost".to_string())
+    ///     .unwrap()
+    ///     .register_dispatcher(&mut dispatcher)
+    ///     .start()
+    ///     .unwrap();
+    /// ```
     pub fn new(
         transport_builder: Box<dyn TransportBuilder>,
         dispatchers: HashMap<u8, DispatcherHandle>,
@@ -137,7 +150,25 @@ impl Connection {
 
     /// Shuts down the connection.
     ///
-    /// TODO(Kaarel): Usage
+    /// # Usage
+    ///
+    /// The `Connection` is typically built using the `ConnectionBuilder`:
+    ///
+    /// ```rust
+    /// # use moteconnection::{ConnectionBuilder, RawDispatcher};
+    /// 
+    /// let mut dispatcher = RawDispatcher::new(0x01);
+    /// let connection = ConnectionBuilder::with_connection_string("sf@localhost".to_string())
+    ///     .unwrap()
+    ///     .register_dispatcher(&mut dispatcher)
+    ///     .start()
+    ///     .unwrap();
+    ///
+    /// // Do things...
+    ///
+    /// let result = connection.stop();
+    /// assert_eq!(result, Ok(()));
+    /// ```
     pub fn stop(mut self) -> Result<(), &'static str> {
         let mut errors = self.transport.stop().is_err();
 
