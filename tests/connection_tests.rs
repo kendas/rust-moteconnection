@@ -108,8 +108,7 @@ fn test_tcp_connection() {
     let connection = ConnectionBuilder::with_connection_string(connection_string)
         .unwrap()
         .register_dispatcher(&mut dispatcher)
-        .start()
-        .unwrap();
+        .start();
 
     server.accept();
     server.do_handshake();
@@ -146,8 +145,7 @@ fn test_raw_packet_connection() {
     let mut dispatcher = RawDispatcher::new(0x01);
     let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
-        .start()
-        .unwrap();
+        .start();
 
     let input = vec![1, 2, 3];
 
@@ -180,8 +178,7 @@ fn test_am_default_receiver_connection() {
 
     let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
-        .start()
-        .unwrap();
+        .start();
 
     let input = vec![0x00, 0x12, 0x34, 0x00, 0x01, 0x01, 0x22, 0x02, 0xff];
 
@@ -228,8 +225,7 @@ fn test_am_receiver_connection() {
 
     let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
-        .start()
-        .unwrap();
+        .start();
 
     let input = vec![0x00, 0x12, 0x34, 0x00, 0x01, 0x01, 0x22, 0x02, 0xff];
 
@@ -276,8 +272,7 @@ fn test_am_default_snooper_connection() {
 
     let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
-        .start()
-        .unwrap();
+        .start();
 
     let input = vec![0x00, 0x12, 0x35, 0x00, 0x01, 0x01, 0x22, 0x02, 0xff];
 
@@ -324,8 +319,7 @@ fn test_am_snooper_connection() {
 
     let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
-        .start()
-        .unwrap();
+        .start();
 
     let input = vec![0x00, 0x12, 0x35, 0x00, 0x01, 0x01, 0x22, 0x02, 0xff];
 
@@ -372,8 +366,7 @@ fn test_am_connection_send() {
 
     let connection = ConnectionBuilder::with_transport(Box::new(transport.clone()))
         .register_dispatcher(&mut dispatcher)
-        .start()
-        .unwrap();
+        .start();
 
     let input = Message {
         dest: 0x1235,

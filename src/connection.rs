@@ -69,18 +69,16 @@ impl Connection {
     ///
     /// ```rust
     /// # use moteconnection::{ConnectionBuilder, RawDispatcher};
-    ///
     /// let mut dispatcher = RawDispatcher::new(0x01);
     /// let connection = ConnectionBuilder::with_connection_string("sf@localhost".to_string())
     ///     .unwrap()
     ///     .register_dispatcher(&mut dispatcher)
-    ///     .start()
-    ///     .unwrap();
+    ///     .start();
     /// ```
     pub fn new(
         transport_builder: Box<dyn TransportBuilder>,
         dispatchers: HashMap<u8, DispatcherHandle>,
-    ) -> Result<Connection, String> {
+    ) -> Connection {
         let (control_tx, control_rx) = mpsc::channel();
 
         let (txs, mut rxs, stoppers) = decompose_dispatch_handles(dispatchers);
@@ -141,12 +139,12 @@ impl Connection {
             })
             .unwrap();
 
-        Ok(Connection {
+        Connection {
             transport,
             control_tx,
             dispatchers: stoppers,
             join_handle,
-        })
+        }
     }
 
     /// Shuts down the connection.
@@ -157,13 +155,11 @@ impl Connection {
     ///
     /// ```rust
     /// # use moteconnection::{ConnectionBuilder, RawDispatcher};
-    ///
     /// let mut dispatcher = RawDispatcher::new(0x01);
     /// let connection = ConnectionBuilder::with_connection_string("sf@localhost".to_string())
     ///     .unwrap()
     ///     .register_dispatcher(&mut dispatcher)
-    ///     .start()
-    ///     .unwrap();
+    ///     .start();
     ///
     /// // Do things...
     ///
@@ -232,8 +228,8 @@ impl ConnectionBuilder {
     }
 
     /// Establishes a new connection and returns the handler.
-    pub fn start(self) -> Result<Connection, String> {
-        Ok(Connection::new(self.transport, self.dispatchers)?)
+    pub fn start(self) -> Connection {
+        Connection::new(self.transport, self.dispatchers)
     }
 
     /// Sets the reconnection timeout for the connection.
@@ -410,8 +406,7 @@ mod tests {
 
         let connection = ConnectionBuilder::with_connection_string(String::from("sf@localhost"))
             .unwrap()
-            .start()
-            .unwrap();
+            .start();
 
         let data = b"U ";
         let mut server_stream = listener.incoming().next().unwrap().unwrap();
@@ -434,8 +429,7 @@ mod tests {
         let mut _connection =
             ConnectionBuilder::with_connection_string(format!("sf@{}", SERVER_ADDR))
                 .unwrap()
-                .start()
-                .unwrap();
+                .start();
 
         let data = b"U ";
         let mut server_stream = listener.incoming().next().unwrap().unwrap();
