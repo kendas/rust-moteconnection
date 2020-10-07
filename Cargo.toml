@@ -1,7 +1,7 @@
 [package]
 name = "moteconnection"
 description = "A library to provide a TinyOS-like interface for packet communication using serial or serial-forwarder transport layers."
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Kaarel Ratas <kaarel.ratas@gmail.com>"]
 edition = "2018"
 license = "MIT"
