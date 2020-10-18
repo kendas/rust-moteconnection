@@ -28,6 +28,7 @@
 //!
 //! [1]: https://github.com/proactivity-lab/docs/wiki/Serial-protocol
 use std::convert::{TryFrom, TryInto};
+use std::fmt;
 
 use super::Dispatcher;
 use crate::{Bytes, Event};
@@ -182,6 +183,31 @@ impl Into<Vec<u8>> for Message {
 impl Into<Event<Bytes>> for Message {
     fn into(self) -> Event<Bytes> {
         Event::Data(self.into())
+    }
+}
+
+impl fmt::Display for Message {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{{{:02X}}}{:04X}->{:04X}[{:02X}]{:>3}: {} {}",
+            self.group,
+            self.src,
+            self.dest,
+            self.id,
+            self.payload.len(),
+            self.payload
+                .iter()
+                .fold(String::new(), |string, byte| format!(
+                    "{}{:02X}",
+                    string, byte
+                )),
+            self.metadata
+                .iter()
+                .fold(String::new(), |string, byte| {
+                    format!("{}{:02X}", string, byte)
+                })
+        )
     }
 }
 
