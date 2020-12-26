@@ -1,4 +1,16 @@
 //! The rust implementation of the moteconnection library.
+//! 
+//! # Example
+//! 
+//! ```rust
+//! use moteconnection::{ConnectionBuilder, RawDispatcher};
+//!
+//! let mut dispatcher = RawDispatcher::new(0x01);
+//! let connection = ConnectionBuilder::with_connection_string("sf@localhost".to_string())
+//!     .unwrap()
+//!     .register_dispatcher(&mut dispatcher)
+//!     .start();
+//! ```
 #![deny(missing_docs)]
 #![deny(clippy::all)]
 
