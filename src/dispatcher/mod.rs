@@ -34,7 +34,7 @@ pub struct DispatchPacket {
     pub payload: Vec<u8>,
 }
 
-/// Handles the dispatching of messages between the user and the trasport layer.
+/// Handles the dispatching of messages between the user and the transport layer.
 ///
 /// TODO(Kaarel)
 pub trait Dispatcher {
