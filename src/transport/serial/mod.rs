@@ -190,15 +190,17 @@ impl TryFrom<String> for SerialBuilder {
         if re.is_match(&name) {
             let caps = re.captures(&name).unwrap();
             let name = caps.get(1).unwrap().as_str();
-            let mut settings = SerialPortSettings::default();
-            settings.baud_rate = match caps.get(2) {
-                Some(v) => match String::from(v.as_str()).parse::<u32>() {
-                    Ok(b) => b,
-                    Err(_) => {
-                        return Err(format!("Invalid baud rate {}!", v.as_str()));
-                    }
+            let settings = SerialPortSettings {
+                baud_rate: match caps.get(2) {
+                    Some(v) => match String::from(v.as_str()).parse::<u32>() {
+                        Ok(b) => b,
+                        Err(_) => {
+                            return Err(format!("Invalid baud rate {}!", v.as_str()));
+                        }
+                    },
+                    None => 115200,
                 },
-                None => 115200,
+                ..SerialPortSettings::default()
             };
             let ports = serialport::available_ports().unwrap();
             for port in ports {

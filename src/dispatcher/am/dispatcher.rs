@@ -212,7 +212,7 @@ impl ReceiverRegistry {
                 .or_else(|| self.default_snooper.as_ref())
         };
         if let Some(id) = id {
-            self.handles.get(&id)
+            self.handles.get(id)
         } else {
             None
         }
