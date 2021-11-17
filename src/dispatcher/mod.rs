@@ -74,10 +74,10 @@ impl TryFrom<Vec<u8>> for DispatchPacket {
     }
 }
 
-impl Into<Vec<u8>> for DispatchPacket {
-    fn into(self) -> Vec<u8> {
-        let mut result = Vec::with_capacity(1 + self.payload.len());
-        result.extend([self.dispatch].iter().chain(self.payload.iter()));
+impl From<DispatchPacket> for Vec<u8> {
+    fn from(value: DispatchPacket) -> Vec<u8> {
+        let mut result = Vec::with_capacity(1 + value.payload.len());
+        result.extend([value.dispatch].iter().chain(value.payload.iter()));
         result
     }
 }

@@ -163,26 +163,26 @@ impl TryFrom<Vec<u8>> for Message {
     }
 }
 
-impl Into<Vec<u8>> for Message {
-    fn into(self) -> Vec<u8> {
+impl From<Message> for Vec<u8> {
+    fn from(value: Message) -> Vec<u8> {
         let mut result = Vec::with_capacity(
-            usize::from(MINIMUM_LENGTH) + self.payload.len() + self.metadata.len(),
+            usize::from(MINIMUM_LENGTH) + value.payload.len() + value.metadata.len(),
         );
         result.extend(
             [].iter()
-                .chain(self.dest.to_be_bytes().iter())
-                .chain(self.src.to_be_bytes().iter())
-                .chain([self.length, self.group, self.id].iter())
-                .chain(self.payload.iter())
-                .chain(self.metadata.iter()),
+                .chain(value.dest.to_be_bytes().iter())
+                .chain(value.src.to_be_bytes().iter())
+                .chain([value.length, value.group, value.id].iter())
+                .chain(value.payload.iter())
+                .chain(value.metadata.iter()),
         );
         result
     }
 }
 
-impl Into<Event<Bytes>> for Message {
-    fn into(self) -> Event<Bytes> {
-        Event::Data(self.into())
+impl From<Message> for Event<Bytes> {
+    fn from(value: Message) -> Event<Bytes> {
+        Event::Data(value.into())
     }
 }
 
