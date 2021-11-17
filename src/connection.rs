@@ -354,7 +354,7 @@ impl DispatcherWorker {
         match data {
             Event::Data(message) => self.send(message),
             e => {
-                panic!(format!("Unknown event {:?}!", e));
+                panic!("Unknown event {:?}!", e);
             }
         }
     }
@@ -478,7 +478,7 @@ mod tests {
 
         match rx.recv().unwrap() {
             Event::Data(output) => assert_eq!(output, vec![2]),
-            e => panic!(format!("Unexpected output: {:?}", e)),
+            e => panic!("Unexpected output: {:?}", e),
         }
     }
 
@@ -500,7 +500,7 @@ mod tests {
 
         match rx.recv() {
             Ok(Event::Connected) => {}
-            e => panic!(format!("Unexpected output: {:?}", e)),
+            e => panic!("Unexpected output: {:?}", e),
         }
     }
 
@@ -522,7 +522,7 @@ mod tests {
 
         match rx.recv() {
             Ok(Event::Disconnected) => {}
-            e => panic!(format!("Unexpected output: {:?}", e)),
+            e => panic!("Unexpected output: {:?}", e),
         }
     }
 
@@ -544,7 +544,7 @@ mod tests {
 
         match rx.recv().unwrap() {
             Event::Data(output) => assert_eq!(output, vec![2]),
-            e => panic!(format!("Unexpected output: {:?}", e)),
+            e => panic!("Unexpected output: {:?}", e),
         }
     }
 
@@ -566,7 +566,7 @@ mod tests {
 
         match rx.try_recv() {
             Err(TryRecvError::Empty) => {}
-            e => panic!(format!("Unexpected output: {:?}", e)),
+            e => panic!("Unexpected output: {:?}", e),
         }
     }
 
@@ -608,7 +608,7 @@ mod tests {
 
         match rx.recv().unwrap() {
             Event::Data(output) => assert_eq!(output, vec![1, 1, 2]),
-            e => panic!(format!("Unexpected output: {:?}", e)),
+            e => panic!("Unexpected output: {:?}", e),
         }
     }
 
@@ -631,7 +631,7 @@ mod tests {
 
         match rx.recv().unwrap() {
             Event::Data(output) => assert_eq!(output, vec![1, 2, 2]),
-            e => panic!(format!("Unexpected output: {:?}", e)),
+            e => panic!("Unexpected output: {:?}", e),
         }
     }
 

@@ -119,7 +119,7 @@ fn test_tcp_connection() {
         .unwrap()
     {
         Event::Connected => {}
-        e => panic!(format!("Expected Event::Data, received {:?}", e)),
+        e => panic!("Expected Event::Data, received {:?}", e),
     }
 
     let mut input = vec![1, 2, 3];
@@ -132,7 +132,7 @@ fn test_tcp_connection() {
         .unwrap()
     {
         Event::Data(output) => assert_eq!(output[..], input[1..]),
-        e => panic!(format!("Expected Event::Data, received {:?}", e)),
+        e => panic!("Expected Event::Data, received {:?}", e),
     }
     connection.stop().unwrap();
     server.shutdown();
@@ -157,11 +157,11 @@ fn test_raw_packet_connection() {
     match dispatcher.rx.recv_timeout(Duration::from_millis(1000)) {
         Ok(value) => match value {
             Event::Data(output) => assert_eq!(output[..], input[1..]),
-            e => panic!(format!("Expected Event::Data, received {:?}", e)),
+            e => panic!("Expected Event::Data, received {:?}", e),
         },
         Err(e) => {
             connection.stop().unwrap();
-            panic!(format!("Unexpected error on recv: {:?}", e));
+            panic!("Unexpected error on recv: {:?}", e);
         }
     }
     connection.stop().unwrap();
@@ -204,12 +204,12 @@ fn test_am_default_receiver_connection() {
             }
             o => {
                 connection.stop().unwrap();
-                panic!(format!("Unexpected Event on recv: {:?}", o));
+                panic!("Unexpected Event on recv: {:?}", o);
             }
         },
         Err(e) => {
             connection.stop().unwrap();
-            panic!(format!("Unexpected error on recv: {:?}", e));
+            panic!("Unexpected error on recv: {:?}", e);
         }
     };
 }
@@ -251,12 +251,12 @@ fn test_am_receiver_connection() {
             }
             o => {
                 connection.stop().unwrap();
-                panic!(format!("Unexpected Event on recv: {:?}", o));
+                panic!("Unexpected Event on recv: {:?}", o);
             }
         },
         Err(e) => {
             connection.stop().unwrap();
-            panic!(format!("Unexpected error on recv: {:?}", e));
+            panic!("Unexpected error on recv: {:?}", e);
         }
     };
 }
@@ -298,12 +298,12 @@ fn test_am_default_snooper_connection() {
             }
             o => {
                 connection.stop().unwrap();
-                panic!(format!("Unexpected Event on recv: {:?}", o));
+                panic!("Unexpected Event on recv: {:?}", o);
             }
         },
         Err(e) => {
             connection.stop().unwrap();
-            panic!(format!("Unexpected error on recv: {:?}", e));
+            panic!("Unexpected error on recv: {:?}", e);
         }
     };
 }
@@ -345,12 +345,12 @@ fn test_am_snooper_connection() {
             }
             o => {
                 connection.stop().unwrap();
-                panic!(format!("Unexpected Event on recv: {:?}", o));
+                panic!("Unexpected Event on recv: {:?}", o);
             }
         },
         Err(e) => {
             connection.stop().unwrap();
-            panic!(format!("Unexpected error on recv: {:?}", e));
+            panic!("Unexpected error on recv: {:?}", e);
         }
     };
 }
@@ -401,12 +401,12 @@ fn test_am_connection_send() {
             }
             e => {
                 connection.stop().unwrap();
-                panic!(format!("Unexpected message type: {:?}", e));
+                panic!("Unexpected message type: {:?}", e);
             }
         },
         Err(e) => {
             connection.stop().unwrap();
-            panic!(format!("Unexpected error on recv: {:?}", e));
+            panic!("Unexpected error on recv: {:?}", e);
         }
     };
 }

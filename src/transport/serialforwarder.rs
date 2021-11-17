@@ -394,7 +394,7 @@ mod tests {
         let mut read_buf = vec![];
         match server_stream.read_to_end(&mut read_buf) {
             Ok(0) => {}
-            v => panic!(format!("Expected a closed stream, got {:?}", v)),
+            v => panic!("Expected a closed stream, got {:?}", v),
         }
         assert_eq!(read_buf, vec![]);
     }

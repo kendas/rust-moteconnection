@@ -244,7 +244,7 @@ impl ConnectionWorker {
                 Event::Stop => {
                     break;
                 }
-                e => panic!(format!("Unexpected event {:?}", e)),
+                e => panic!("Unexpected event {:?}", e),
             };
         }
     }

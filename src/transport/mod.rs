@@ -14,13 +14,13 @@ pub mod serialforwarder;
 /// A struct representing a transport implementation.
 pub struct Transport {
     handle: Option<TransportHandle>,
-    /// The stopper function for the `Trasnport`
+    /// The stopper function for the `Transport`
     stopper: Box<dyn FnOnce() -> Result<(), &'static str>>,
 }
 
 /// Provides a handle for the use in `Connection`.
 pub struct TransportHandle {
-    /// The sender for the outging channel
+    /// The sender for the outgoing channel
     pub tx: Sender<Event<Bytes>>,
     /// the receiver for the incoming channel
     pub rx: Receiver<Event<Bytes>>,

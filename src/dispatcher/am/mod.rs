@@ -82,21 +82,21 @@ pub struct Message {
     pub metadata: Vec<u8>,
 }
 
-/// Represents the types of errors that constructiong a `Message` can produce.
+/// Represents the types of errors that constructing a `Message` can produce.
 #[derive(Debug)]
 pub enum MessageParseError {
     /// Indicates that the supplied byte vector was too large.
     VecTooLarge {
         /// A verbose message for the developer
         message: String,
-        /// The size that was encontered
+        /// The size that was encountered
         length: usize,
     },
     /// Indicates that the supplied byte vector was too small.
     VecTooSmall {
         /// A verbose message for the developer
         message: String,
-        /// The size that was encontered
+        /// The size that was encountered
         length: usize,
     },
     /// Indicates that the payload length did not match the length of the
