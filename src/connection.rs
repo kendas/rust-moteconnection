@@ -239,7 +239,7 @@ impl ConnectionBuilder {
     }
 
     fn build_transport(connection_string: &str) -> Result<Box<dyn TransportBuilder>, String> {
-        let re = Regex::new(r"^(sf|serial)@([^:]+(:\d+)?)$").unwrap();
+        let re = Regex::new(r"^(sf|serial)@([^:]+(?::(\d+))?)$").unwrap();
         if re.is_match(connection_string) {
             let caps = re.captures(connection_string).unwrap();
             match caps.get(1).unwrap().as_str() {

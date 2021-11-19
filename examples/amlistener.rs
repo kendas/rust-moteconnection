@@ -1,4 +1,4 @@
-/// Connects to a serial-frowarder port and prints all incoming messages
+/// Connects to a serial-forwarder port and prints all incoming messages
 /// to stdout.
 use std::net::ToSocketAddrs;
 use std::time::Duration;
@@ -6,15 +6,14 @@ use std::time::Duration;
 use chrono::{Local, SecondsFormat};
 use clap::{App, Arg};
 use regex::Regex;
-use serialport::SerialPortSettings;
 
-use moteconnection::dispatcher::am::{AMDispatcherBuilder, AMReceiver};
 use moteconnection::{ConnectionBuilder, Event};
+use moteconnection::dispatcher::am::{AMDispatcherBuilder, AMReceiver};
 
 fn main() {
     let matches = App::new("amlistener")
         .about(concat!(
-            "Connects to a serial-frowarder or serial port ",
+            "Connects to a serial-forwarder or serial port ",
             "and prints all incoming messages"
         ))
         .arg(
@@ -126,28 +125,30 @@ fn validate_connection_string(value: String) -> Result<(), String> {
             }
             "serial" => {
                 let name = caps.get(2).unwrap().as_str();
-                let re = Regex::new(r"^([^:]+)(:\d+)?$").unwrap();
+                let re = Regex::new(r"^([^:]+)(?::(\d+))?$").unwrap();
                 if re.is_match(&name) {
                     let caps = re.captures(&name).unwrap();
                     let name = caps.get(1).unwrap().as_str();
-                    let mut settings = SerialPortSettings::default();
-                    settings.baud_rate = match caps.get(2) {
-                        Some(v) => match String::from(v.as_str()).parse::<u32>() {
-                            Ok(b) => b,
-                            Err(_) => {
-                                return Err(format!("Invalid baud rate {}!", v.as_str()));
-                            }
-                        },
-                        None => 115200,
-                    };
-                    let ports = serialport::available_ports().unwrap();
-                    for port in ports {
-                        if port.port_name == name {
-                            return Ok(());
+                    if let Some(v) = caps.get(2) {
+                        if String::from(v.as_str()).parse::<u32>().is_err() {
+                            return Err(format!("Invalid baud rate {}", v.as_str()));
                         }
                     }
+                    let port_exists = serialport::available_ports()
+                        .unwrap()
+                        .iter()
+                        .find(|port| port.port_name == name)
+                        .is_some();
+                    if !port_exists {
+                        return Err(format!("The serial port {} was not found", name));
+                    }
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "The serial port information {} uses unknown format",
+                        name
+                    ))
                 }
-                Err(format!("The serial port {} was not found!", name))
             }
             protocol => Err(format!("Unknown protocol: {}", protocol)),
         }
